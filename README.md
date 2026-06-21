@@ -116,12 +116,17 @@ npm run dev          # or: npm start
 
 ### Environment variables
 
-See [`.env.example`](./.env.example). Required: `DISCORD_TOKEN`,
-`DISCORD_CLIENT_ID`. Common: `LAVALINK_PASSWORD`, `DISCORD_GUILD_ID`,
-`DEFAULT_SEARCH_PLATFORM`, `DEFAULT_VOLUME`, `LOG_LEVEL`.
+See [`.env.example`](./.env.example).
 
-> **Secrets:** the bot token and Lavalink password are credentials. They live
-> only in `.env`, which is gitignored — never commit them.
+- **Required:** `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`.
+- **Common:** `LAVALINK_PASSWORD`, `DISCORD_GUILD_ID`, `DEFAULT_SEARCH_PLATFORM`,
+  `DEFAULT_VOLUME`, `LOG_LEVEL`.
+- **Spotify (optional):** `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — see
+  [Enabling Spotify](#enabling-spotify).
+
+> **Secrets:** the bot token, the Lavalink password, and the Spotify client
+> secret are all credentials. They live only in `.env`, which is gitignored —
+> never commit them.
 
 ## Scripts
 
