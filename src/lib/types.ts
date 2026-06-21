@@ -1,4 +1,5 @@
 import type {
+  AutocompleteInteraction,
   ChatInputCommandInteraction,
   ClientEvents,
   SlashCommandBuilder,
@@ -19,6 +20,8 @@ export interface Command {
   /** Per-user cooldown in ms; falls back to config.commands.defaultCooldownMs. */
   cooldownMs?: number;
   execute(interaction: ChatInputCommandInteraction): Promise<void> | void;
+  /** Optional: provide live search suggestions for an option (the typeahead dropdown). */
+  autocomplete?(interaction: AutocompleteInteraction): Promise<void> | void;
 }
 
 /**

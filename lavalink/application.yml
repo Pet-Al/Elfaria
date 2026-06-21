@@ -14,6 +14,18 @@ lavalink:
     # for the latest version if YouTube playback breaks, then restart lavalink.
     - dependency: 'dev.lavalink.youtube:youtube-plugin:1.18.1'
       repository: 'https://maven.lavalink.dev/releases'
+    # ── Spotify / Apple Music / Deezer (OPT-IN) ───────────────────────────────
+    # Uncomment the LavaSrc plugin below to enable Spotify links + `spsearch:`.
+    # Spotify gives metadata only; LavaSrc resolves the actual audio from
+    # YouTube/SoundCloud. To enable:
+    #   1. Get credentials at https://developer.spotify.com/dashboard (create an
+    #      app) and put them in .env as SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET.
+    #   2. Uncomment the two lines below AND the `lavasrc:` block lower down.
+    #   3. Confirm the latest version at
+    #      https://github.com/lavalink-devs/lavasrc/releases (bump if needed).
+    #   4. docker compose up -d --force-recreate lavalink
+    # - dependency: 'com.github.topi314.lavasrc:lavasrc-plugin:4.7.3'
+    #   repository: 'https://maven.lavalink.dev/releases'
   server:
     password: '${LAVALINK_SERVER_PASSWORD:youshallnotpass}'
     sources:
@@ -43,6 +55,19 @@ plugins:
       - WEBEMBEDDED
       - ANDROID_VR
       - TVHTML5EMBEDDED
+  # ── Spotify / Apple Music / Deezer (OPT-IN) ─────────────────────────────────
+  # Uncomment this whole `lavasrc:` block together with the LavaSrc plugin
+  # dependency above. Spotify needs SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET
+  # set in .env (passed through by docker-compose).
+  # lavasrc:
+  #   sources:
+  #     spotify: true
+  #     applemusic: false
+  #     deezer: false
+  #   spotify:
+  #     clientId: '${SPOTIFY_CLIENT_ID}'
+  #     clientSecret: '${SPOTIFY_CLIENT_SECRET}'
+  #     countryCode: 'US'
 
 logging:
   level:

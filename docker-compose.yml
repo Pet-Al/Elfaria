@@ -13,6 +13,10 @@ services:
       _JAVA_OPTIONS: -Xmx512m
       SERVER_PORT: '2333'
       LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      # Used only if you enable the LavaSrc plugin for Spotify (see
+      # lavalink/application.yml). Harmless when empty/unused.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
     # NB: we do NOT mount a volume over /opt/Lavalink/plugins. Lavalink runs as a

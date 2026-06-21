@@ -19,12 +19,14 @@ not the whole bot.
 
 ## Features
 
-- **Slash commands** for the full playback surface.
+- **Slash commands** for the full playback surface, with **typeahead
+  autocomplete** on `/play` (a live search dropdown as you type).
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
   with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
 - **Multi-source** via Lavalink + the youtube-source plugin: YouTube, SoundCloud,
-  Bandcamp, Twitch, Vimeo, direct URLs (and Spotify/Apple if you add LavaSrc).
+  Bandcamp, Twitch, Vimeo, direct URLs. **Spotify / Apple Music / Deezer** are an
+  opt-in via the LavaSrc plugin — see [Enabling Spotify](#enabling-spotify).
 - **Persistence (SQLite)**: per-guild default volume, DJ role, and **saved
   playlists** (`/playlist save|load|list|delete`) that survive restarts.
 - **Hardening**: per-user command cooldowns, DJ permission gate, structured
@@ -168,6 +170,31 @@ you never rebuild or redeploy the bot:
 
 Lavalink even logs when a newer plugin is available, so you know exactly when to
 do this. SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
+
+## Enabling Spotify
+
+Spotify (and Apple Music / Deezer) is **off by default** — the youtube-source
+plugin doesn't handle it. Turn it on with Lavalink's **LavaSrc** plugin. Spotify
+provides metadata only; LavaSrc bridges the actual audio from YouTube/SoundCloud.
+
+1. Create an app at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   and copy its **Client ID** and **Client Secret** into `.env`:
+   ```
+   SPOTIFY_CLIENT_ID=...
+   SPOTIFY_CLIENT_SECRET=...
+   ```
+2. In `lavalink/application.yml`, **uncomment** the LavaSrc plugin dependency and
+   the `lavasrc:` config block (both are marked "OPT-IN"). Check the
+   [LavaSrc releases](https://github.com/lavalink-devs/lavasrc/releases) and bump
+   the version if needed.
+3. Recreate just the audio service:
+   ```
+   docker compose up -d --force-recreate lavalink
+   ```
+
+Now Spotify track/album/playlist links work in `/play`, and `spsearch:<query>`
+searches Spotify. (To make plain `/play <text>` search Spotify by default, set
+`DEFAULT_SEARCH_PLATFORM=spsearch` in `.env`.)
 
 ## Scaling beyond this setup
 

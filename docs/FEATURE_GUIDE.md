@@ -109,6 +109,11 @@ Elfaria is **slash-command only**:
 - **Native UX.** Argument validation, choices (e.g. `/loop off|track|queue`),
   permission-gated commands (`/settings` requires Manage Server), and ephemeral
   error replies are all first-class.
+- **Typeahead autocomplete on `/play`.** As you type, the bot queries Lavalink
+  live and shows a dropdown of real matches; picking one passes the exact track
+  URL so playback resolves instantly. It searches via a Lavalink node directly —
+  no voice connection required just to suggest — and fails soft to no
+  suggestions if the backend hiccups.
 
 **Why it matters:** prefix bots are on borrowed time and leak a privileged
 intent. Slash commands are discoverable, validated by Discord, and the only
@@ -253,7 +258,8 @@ Lavalink node, which is the right size for one-to-many servers. Not yet built
 
 - Filters/EQ, autoplay, and button controls are **supported by the platform but
   not yet surfaced as commands**.
-- Spotify/Apple links need the **LavaSrc** plugin enabled (one config block).
+- Spotify/Apple/Deezer are a **documented opt-in** via the LavaSrc plugin (see
+  the README's "Enabling Spotify"); they need your Spotify API credentials.
 - No sharding yet (unnecessary below thousands of guilds).
 - Search caching is left to Lavalink (the app cache currently fronts settings).
 

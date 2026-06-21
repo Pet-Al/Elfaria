@@ -8,8 +8,9 @@ import { logger } from './src/lib/logger.js';
  *
  * Run this whenever command definitions change — NOT on every boot.
  *
- *   - With DISCORD_GUILD_ID set → registers to that one guild INSTANTLY. Use a
- *     private guild for staging/fast iteration (doc §11).
+ *   - With DISCORD_GUILD_ID set → registers to that one guild INSTANTLY, and
+ *     CLEARS global commands so you don't get duplicates (a global copy AND a
+ *     guild copy of the same command showing twice in the picker).
  *   - Without it → registers GLOBALLY; propagation can take up to ~1 hour.
  */
 async function main(): Promise<void> {
@@ -21,9 +22,12 @@ async function main(): Promise<void> {
       Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
       { body },
     );
+    // Remove any GLOBAL registrations so commands don't appear twice. (Global
+    // deletions can take a little while to propagate in clients.)
+    await rest.put(Routes.applicationCommands(config.discord.clientId), { body: [] });
     logger.info(
       { count: body.length, guildId: config.discord.guildId },
-      'registered guild commands (instant)',
+      'registered guild commands (instant) and cleared global commands',
     );
   } else {
     await rest.put(Routes.applicationCommands(config.discord.clientId), { body });
