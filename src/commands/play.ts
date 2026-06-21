@@ -15,6 +15,18 @@ import { resolve } from '../music/sources.js';
  * playback if idle. The "now playing" announcement is emitted by the trackStart
  * Lavalink event (music/player.ts); here we just acknowledge the enqueue.
  */
+
+/** If the query is a Spotify request, returns a hint explaining the opt-in. */
+function spotifyHint(query: string): string | null {
+  if (/open\.spotify\.com|spotify:|^\s*spsearch:/i.test(query)) {
+    return (
+      "Spotify isn't enabled on this bot yet. The host needs to turn on the " +
+      'LavaSrc plugin (see the README → “Enabling Spotify”). YouTube and ' +
+      'SoundCloud links/searches work in the meantime.'
+    );
+  }
+  return null;
+}
 export const play: Command = {
   data: new SlashCommandBuilder()
     .setName('play')
@@ -77,8 +89,15 @@ export const play: Command = {
       const player = await getOrCreatePlayer(interaction, voice.voiceChannel.id);
       const result = await resolve(player, query, interaction.user);
 
+      // Lavalink couldn't load the source (e.g. a Spotify link with no LavaSrc).
+      if (result.loadType === 'error') {
+        const reason = result.exception?.message ?? 'the source returned an error';
+        await replyError(interaction, spotifyHint(query) ?? `Couldn't load that — ${reason}.`);
+        return;
+      }
+
       if (!result.tracks.length) {
-        await replyError(interaction, `No results found for **${query}**.`);
+        await replyError(interaction, spotifyHint(query) ?? `No results found for **${query}**.`);
         return;
       }
 
@@ -99,7 +118,8 @@ export const play: Command = {
       logger.error({ err, guildId: interaction.guildId, query }, 'failed to start playback');
       await replyError(
         interaction,
-        'Something went wrong trying to play that. The audio service may be unavailable.',
+        spotifyHint(query) ??
+          'Something went wrong trying to play that. The audio service may be unavailable.',
       );
     }
   },

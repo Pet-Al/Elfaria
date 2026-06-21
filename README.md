@@ -112,6 +112,7 @@ See [`.env.example`](./.env.example). Required: `DISCORD_TOKEN`,
 | `npm run dev`       | Run with file-watch (tsx).            |
 | `npm start`         | Run once (tsx).                       |
 | `npm run deploy`    | Register slash commands with Discord. |
+| `npm run deploy:list` | Print which commands are registered globally vs. per-guild (diagnose duplicates). |
 | `npm run typecheck` | `tsc --noEmit`.                       |
 | `npm run lint`      | ESLint.                               |
 | `npm run format`    | Prettier.                             |
@@ -170,6 +171,21 @@ you never rebuild or redeploy the bot:
 
 Lavalink even logs when a newer plugin is available, so you know exactly when to
 do this. SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
+
+## Duplicate (doubled) slash commands
+
+If a command shows up twice in Discord, you have **both** a global and a
+per-guild copy — usually a leftover global registration from an earlier deploy.
+Fix it:
+
+```bash
+docker compose run --rm bot npm run deploy:list   # see global vs guild counts
+docker compose run --rm bot npm run deploy        # re-registers guild + clears global
+```
+
+`deploy` (with `DISCORD_GUILD_ID` set) clears the global set automatically.
+Discord can take **up to ~1 hour** to drop global commands from clients, so
+restart your Discord app (Ctrl+R) to refresh sooner.
 
 ## Enabling Spotify
 

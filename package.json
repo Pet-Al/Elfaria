@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "deploy": "tsx deploy-commands.ts",
+    "deploy:list": "tsx deploy-commands.ts --list",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."
