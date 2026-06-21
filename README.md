@@ -10,6 +10,13 @@ Lavalink container; the bot stays lightweight and just forwards voice updates an
 sends play/queue commands. When YouTube changes, you update the audio service —
 not the whole bot.
 
+> **Why this is a modern, flagship-grade bot — not another outdated script:**
+> offloaded audio (Lavalink), Discord's new **DAVE** end-to-end voice
+> encryption, slash-commands-only with least-privilege intents, strict
+> TypeScript, containerized with CI, and resilient by design. The full argument,
+> with a legacy-vs-modern comparison and the capabilities you can light up next,
+> is in **[docs/FEATURE_GUIDE.md](./docs/FEATURE_GUIDE.md)**.
+
 ## Features
 
 - **Slash commands** for the full playback surface.
@@ -152,13 +159,15 @@ Dockerfile, docker-compose.yml
 
 ## When YouTube breaks
 
-Because audio is offloaded, YouTube fixes are isolated to the audio service:
+Because audio is offloaded, YouTube fixes are isolated to the audio service —
+you never rebuild or redeploy the bot:
 
-1. Bump the `youtube-plugin` version in `lavalink/application.yml` (see the
-   [youtube-source releases](https://github.com/lavalink-devs/youtube-source)).
-2. `docker compose up -d --build lavalink`.
+1. Bump the `youtube-plugin` version in `lavalink/application.yml` to the latest
+   from the [youtube-source releases](https://github.com/lavalink-devs/youtube-source).
+2. `docker compose up -d --force-recreate lavalink`.
 
-SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
+Lavalink even logs when a newer plugin is available, so you know exactly when to
+do this. SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
 
 ## Scaling beyond this setup
 
