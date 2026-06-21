@@ -1,0 +1,29 @@
+# Single-process v1 (doc §11). The bot runs as one always-on container.
+#
+# At scale (doc §3 Option B, §9) this is where you'd add `lavalink` and `redis`
+# services and wire the bot to them — stubs are sketched in comments below.
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Persist the SQLite database across container restarts/redeploys.
+      - elfaria-data:/app/data
+    # No ports exposed: the bot connects out to Discord; it serves no HTTP.
+
+  # ── Future scaling (uncomment when offloading audio / sharding) ─────────────
+  # lavalink:
+  #   image: ghcr.io/lavalink-devs/lavalink:4
+  #   restart: unless-stopped
+  #   environment:
+  #     - SERVER_PORT=2333
+  #     - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD}
+  #   # Do NOT publish this port publicly — keep it on the internal network only.
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+
+volumes:
+  elfaria-data:
