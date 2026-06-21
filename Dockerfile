@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# ── Builder: install deps (incl. native modules) and typecheck ────────────────
+# ── Builder: install deps (incl. native modules) ─────────────────────────────
 FROM node:22-bookworm AS builder
 WORKDIR /app
 
@@ -8,11 +8,13 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Copy source and verify it typechecks as a build gate.
+# Copy source. Typechecking is intentionally NOT run here — it is a CI gate
+# (see .github/workflows/ci.yml). Running `tsc` during the image build is
+# unnecessary for a tsx-based runtime and can crash V8's JIT under some
+# virtualized Docker hosts (exit 133).
 COPY tsconfig.json ./
 COPY src ./src
 COPY deploy-commands.ts ./
-RUN npm run typecheck
 
 # ── Runtime: slim image with built node_modules, no build toolchain ───────────
 FROM node:22-bookworm-slim AS runtime
