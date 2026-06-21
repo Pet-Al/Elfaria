@@ -258,8 +258,8 @@ Lavalink node, which is the right size for one-to-many servers. Not yet built
 
 - Filters/EQ, autoplay, and button controls are **supported by the platform but
   not yet surfaced as commands**.
-- Spotify/Apple/Deezer are a **documented opt-in** via the LavaSrc plugin (see
-  the README's "Enabling Spotify"); they need your Spotify API credentials.
+- Spotify/Apple/Deezer ship via the bundled LavaSrc plugin; Spotify just needs
+  free API credentials (see the README's "Enabling Spotify").
 - No sharding yet (unnecessary below thousands of guilds).
 - Search caching is left to Lavalink (the app cache currently fronts settings).
 

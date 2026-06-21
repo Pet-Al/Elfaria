@@ -24,9 +24,10 @@ not the whole bot.
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
   with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
-- **Multi-source** via Lavalink + the youtube-source plugin: YouTube, SoundCloud,
-  Bandcamp, Twitch, Vimeo, direct URLs. **Spotify / Apple Music / Deezer** are an
-  opt-in via the LavaSrc plugin — see [Enabling Spotify](#enabling-spotify).
+- **Multi-source** via Lavalink: YouTube, SoundCloud, Bandcamp, Twitch, Vimeo,
+  direct URLs, plus **Spotify / Apple Music / Deezer** through the bundled
+  LavaSrc plugin (Spotify just needs free API credentials — see
+  [Enabling Spotify](#enabling-spotify)).
 - **Persistence (SQLite)**: per-guild default volume, DJ role, and **saved
   playlists** (`/playlist save|load|list|delete`) that survive restarts.
 - **Hardening**: per-user command cooldowns, DJ permission gate, structured
@@ -179,9 +180,15 @@ per-guild copy — usually a leftover global registration from an earlier deploy
 Fix it:
 
 ```bash
+docker compose build                              # IMPORTANT: refresh the image after git pull
 docker compose run --rm bot npm run deploy:list   # see global vs guild counts
 docker compose run --rm bot npm run deploy        # re-registers guild + clears global
 ```
+
+> **`docker compose run` uses the built image, not your working files.** After
+> any `git pull` you must `docker compose build` first, or the container keeps
+> running the old code (a stale image is why a new script can read
+> "Missing script" or an updated deploy behaves like the old one).
 
 `deploy` (with `DISCORD_GUILD_ID` set) clears the global set automatically.
 Discord can take **up to ~1 hour** to drop global commands from clients, so
@@ -189,9 +196,9 @@ restart your Discord app (Ctrl+R) to refresh sooner.
 
 ## Enabling Spotify
 
-Spotify (and Apple Music / Deezer) is **off by default** — the youtube-source
-plugin doesn't handle it. Turn it on with Lavalink's **LavaSrc** plugin. Spotify
-provides metadata only; LavaSrc bridges the actual audio from YouTube/SoundCloud.
+The **LavaSrc** plugin (which handles Spotify / Apple Music / Deezer) ships
+enabled — you only need to add Spotify credentials. Spotify provides metadata
+only; LavaSrc bridges the actual audio from YouTube/SoundCloud.
 
 1. Create an app at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
    and copy its **Client ID** and **Client Secret** into `.env`:
@@ -199,11 +206,7 @@ provides metadata only; LavaSrc bridges the actual audio from YouTube/SoundCloud
    SPOTIFY_CLIENT_ID=...
    SPOTIFY_CLIENT_SECRET=...
    ```
-2. In `lavalink/application.yml`, **uncomment** the LavaSrc plugin dependency and
-   the `lavasrc:` config block (both are marked "OPT-IN"). Check the
-   [LavaSrc releases](https://github.com/lavalink-devs/lavasrc/releases) and bump
-   the version if needed.
-3. Recreate just the audio service:
+2. Apply it:
    ```
    docker compose up -d --force-recreate lavalink
    ```
@@ -211,6 +214,14 @@ provides metadata only; LavaSrc bridges the actual audio from YouTube/SoundCloud
 Now Spotify track/album/playlist links work in `/play`, and `spsearch:<query>`
 searches Spotify. (To make plain `/play <text>` search Spotify by default, set
 `DEFAULT_SEARCH_PLATFORM=spsearch` in `.env`.)
+
+> **Is this safe for my Spotify account?** Yes. This uses the Spotify **Web API**
+> with **app credentials** (Client ID + Secret), *not* your username/password —
+> the bot never logs into your account, so there's nothing to get banned. A
+> **free** Spotify account can create the app; **Premium is not required** (the
+> API is metadata-only, and audio is sourced from YouTube/SoundCloud, so no
+> Spotify audio is streamed). Treat the Client Secret like a password and keep it
+> in `.env`.
 
 ## Scaling beyond this setup
 
