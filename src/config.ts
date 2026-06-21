@@ -60,6 +60,16 @@ export const config = {
     defaultVolume: intOption('DEFAULT_VOLUME', 80),
     leaveOnEmptyCooldownMs: intOption('LEAVE_ON_EMPTY_COOLDOWN_MS', 120_000),
     leaveOnEndCooldownMs: intOption('LEAVE_ON_END_COOLDOWN_MS', 120_000),
+    youtube: {
+      // Which Innertube client to stream YouTube with. The default WEB client
+      // needs signature deciphering, which YouTube frequently breaks; alternate
+      // clients (WEB_EMBEDDED / IOS / ANDROID / TV) often stream without it.
+      // This is a knob because which one works changes over time (doc §4).
+      streamClient: optional('YOUTUBE_STREAM_CLIENT', 'WEB_EMBEDDED'),
+      // Optional YouTube account cookie for authenticated streaming — the most
+      // reliable fix when anonymous extraction is blocked. Empty = anonymous.
+      cookie: optional('YOUTUBE_COOKIE', ''),
+    },
   },
 
   commands: {
