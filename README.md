@@ -85,6 +85,23 @@ permissions: **Connect**, **Speak**, **Send Messages**, **Embed Links**.
 > Lavalink's **first** boot downloads the YouTube plugin and takes ~10–30s. The
 > bot retries the node connection automatically until it's ready.
 
+## Updating (after `git pull`)
+
+`docker compose run`/`exec` use the **built image**, not your working tree — so a
+`git pull` alone changes nothing until you rebuild. The canonical update is:
+
+```bash
+git pull
+docker compose build                       # rebuild the bot image with new code
+docker compose up -d --force-recreate      # recreate bot (new image) + lavalink (reload application.yml)
+docker compose run --rm bot npm run deploy # only when command definitions changed
+```
+
+- `docker compose build` only rebuilds the **bot** image (Lavalink is a prebuilt
+  image). Lavalink config lives in the bind-mounted `lavalink/application.yml`,
+  so it's picked up by `--force-recreate`, not by `build`.
+- You can scope a recreate to one service: `docker compose up -d --force-recreate lavalink`.
+
 ## Running without Docker
 
 You need a **separate Lavalink v4 node** running (with the youtube-source plugin
