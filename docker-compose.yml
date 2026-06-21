@@ -15,7 +15,10 @@ services:
       LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
-      - lavalink-plugins:/opt/Lavalink/plugins
+    # NB: we do NOT mount a volume over /opt/Lavalink/plugins. Lavalink runs as a
+    # non-root user and a named volume there is root-owned → "Permission denied"
+    # writing the plugin jar → crash loop. Letting Lavalink redownload the small
+    # plugin into its own writable dir on each start avoids that entirely.
     # Not published to the host — only the bot (same network) can reach it.
     expose:
       - '2333'
@@ -37,4 +40,3 @@ services:
 
 volumes:
   elfaria-data:
-  lavalink-plugins:
