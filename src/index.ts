@@ -1,17 +1,17 @@
-import { useMainPlayer } from 'discord-player';
 import { ElfariaClient } from './client.js';
 import { loadCommands } from './commands/index.js';
 import { config } from './config.js';
 import { closeDatabase, initDatabase } from './db/index.js';
 import { registerEvents } from './events/index.js';
 import { logger } from './lib/logger.js';
-import { initPlayer } from './music/player.js';
+import { registerLavalinkEvents } from './music/player.js';
 
 /**
  * Entry point (doc §1, milestone 1). Boots the durable, stateful service:
- * database → client → commands → events → audio → login. Installs process-level
- * error handlers and graceful shutdown so the bot stays available (doc §10) and
- * a hard crash is left to the process supervisor to restart.
+ * database → client → commands → events → Lavalink wiring → login. The Lavalink
+ * manager itself is initialised in the ready event (it needs the bot user id).
+ * Installs process-level error handlers and graceful shutdown so the bot stays
+ * available (doc §10) and a hard crash is left to the supervisor to restart.
  */
 
 const client = new ElfariaClient();
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   initDatabase();
   loadCommands(client);
   registerEvents(client);
-  await initPlayer(client);
+  registerLavalinkEvents(client);
 
   await client.login(config.discord.token);
 }
@@ -45,12 +45,11 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, 'graceful shutdown started');
 
-  try {
-    const player = useMainPlayer();
-    // Stop playback and disconnect from all voice channels.
-    player?.destroy();
-  } catch (err) {
-    logger.warn({ err }, 'error while destroying player on shutdown');
+  // Stop playback and disconnect from all voice channels.
+  for (const player of client.lavalink.players.values()) {
+    await player.destroy('Bot shutting down').catch((err) => {
+      logger.warn({ err, guildId: player.guildId }, 'error destroying player on shutdown');
+    });
   }
 
   try {

@@ -1,15 +1,8 @@
-import { QueueRepeatMode } from 'discord-player';
 import { SlashCommandBuilder } from 'discord.js';
+import type { RepeatMode } from 'lavalink-client';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
-
-const MODES: Record<string, QueueRepeatMode> = {
-  off: QueueRepeatMode.OFF,
-  track: QueueRepeatMode.TRACK,
-  queue: QueueRepeatMode.QUEUE,
-  autoplay: QueueRepeatMode.AUTOPLAY,
-};
+import { getPlayer } from '../music/QueueManager.js';
 
 export const loop: Command = {
   data: new SlashCommandBuilder()
@@ -24,7 +17,6 @@ export const loop: Command = {
           { name: 'Off', value: 'off' },
           { name: 'Current track', value: 'track' },
           { name: 'Whole queue', value: 'queue' },
-          { name: 'Autoplay (recommendations)', value: 'autoplay' },
         ),
     ),
   async execute(interaction) {
@@ -35,14 +27,14 @@ export const loop: Command = {
       return;
     }
 
-    const queue = getQueue(interaction.guildId!);
-    if (!queue) {
+    const player = getPlayer(interaction);
+    if (!player) {
       await replyError(interaction, 'Nothing is playing.');
       return;
     }
 
-    const mode = interaction.options.getString('mode', true);
-    queue.setRepeatMode(MODES[mode] ?? QueueRepeatMode.OFF);
+    const mode = interaction.options.getString('mode', true) as RepeatMode;
+    await player.setRepeatMode(mode);
     await replyOk(interaction, `🔁 Repeat mode set to **${mode}**.`);
   },
 };

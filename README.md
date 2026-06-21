@@ -1,27 +1,30 @@
 # Elfaria 🎵
 
-A Discord **music bot** built with **discord.js v14** and **discord-player**, in
-TypeScript. This is the single-process **v1** described in the architecture doc —
-a long-lived, stateful, event-driven service that connects to Discord over a
-WebSocket, streams encrypted audio over voice, and persists durable state in an
-embedded SQLite database.
+A Discord **music bot** built with **discord.js v14** and **Lavalink** (via
+`lavalink-client`), in TypeScript. A long-lived, stateful, event-driven service
+that connects to Discord over a WebSocket, **offloads audio to a Lavalink node**
+(doc §3 Option B), and persists durable state in an embedded SQLite database.
+
+Audio (sourcing, transcoding, encryption, UDP streaming) runs in a separate
+Lavalink container; the bot stays lightweight and just forwards voice updates and
+sends play/queue commands. When YouTube changes, you update the audio service —
+not the whole bot.
 
 ## Features
 
-- **Slash commands** with autocomplete on `/play`.
+- **Slash commands** for the full playback surface.
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
-  with a progress bar, volume, repeat (off/track/queue/autoplay), shuffle,
+  with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
-- **Multi-source** via discord-player extractors (SoundCloud, YouTube\*, Spotify/
-  Apple bridging, direct links). \*YouTube extraction is loaded best-effort and
-  isolated so it can be updated independently when it breaks.
+- **Multi-source** via Lavalink + the youtube-source plugin: YouTube, SoundCloud,
+  Bandcamp, Twitch, Vimeo, direct URLs (and Spotify/Apple if you add LavaSrc).
 - **Persistence (SQLite)**: per-guild default volume, DJ role, and **saved
   playlists** (`/playlist save|load|list|delete`) that survive restarts.
 - **Hardening**: per-user command cooldowns, DJ permission gate, structured
   (pino) logging, global error handlers, auto-leave on empty channel / queue
   end, and graceful shutdown.
-- **Ops**: Docker + docker-compose, GitHub Actions CI (lint → typecheck → docker
-  build), `.env`-based secrets.
+- **Ops**: Docker + docker-compose (bot + Lavalink), GitHub Actions CI
+  (lint → typecheck → docker build), `.env`-based secrets.
 
 ## Commands
 
@@ -35,7 +38,7 @@ embedded SQLite database.
 | `/queue [page]`                      | Show the queue.                                  |
 | `/nowplaying`                        | Current track + progress bar.                    |
 | `/volume [level]`                    | Show or set volume (0–100); persisted per guild. |
-| `/loop <mode>`                       | off / track / queue / autoplay.                  |
+| `/loop <mode>`                       | off / track / queue.                             |
 | `/shuffle`                           | Shuffle upcoming tracks.                         |
 | `/remove <position>`                 | Remove a track by its queue position.            |
 | `/settings view\|dj-role`            | View settings / set the DJ role (Manage Server). |
@@ -45,40 +48,53 @@ Playback-control commands respect the **DJ role** if one is configured
 (`/settings dj-role`); otherwise everyone can use them. Members with **Manage
 Server** always count as DJs.
 
-## Quick start
+## Quick start (Docker — recommended)
 
-Requires **Node.js 22+** and a Discord application/bot token.
+Docker Compose runs both the bot and a Lavalink node together.
 
 ```bash
-# 1. Install (builds native deps: mediaplex, better-sqlite3)
-npm install
-
-# 2. Configure secrets
+# 1. Configure secrets
 cp .env.example .env
-#   then fill in DISCORD_TOKEN and DISCORD_CLIENT_ID (and DISCORD_GUILD_ID
-#   for instant command registration while developing).
+#   Fill in DISCORD_TOKEN, DISCORD_CLIENT_ID, (optional) DISCORD_GUILD_ID for
+#   instant command registration, and a LAVALINK_PASSWORD.
 
-# 3. Register slash commands (run again whenever command definitions change)
-npm run deploy
+# 2. Build
+docker compose build
 
-# 4. Run
-npm run dev      # watch mode
-# or
-npm start
+# 3. Register slash commands (one-off; re-run when command definitions change)
+docker compose run --rm bot npm run deploy
+
+# 4. Start (bot + lavalink)
+docker compose up -d
+docker compose logs -f bot      # look for: "lavalink node connected" → "gateway ready"
 ```
 
 Invite the bot with the `bot` and `applications.commands` scopes and the
 permissions: **Connect**, **Speak**, **Send Messages**, **Embed Links**.
 
+> Lavalink's **first** boot downloads the YouTube plugin and takes ~10–30s. The
+> bot retries the node connection automatically until it's ready.
+
+## Running without Docker
+
+You need a **separate Lavalink v4 node** running (with the youtube-source plugin
+— see `lavalink/application.yml`). Then point the bot at it via `LAVALINK_HOST` /
+`LAVALINK_PORT` / `LAVALINK_PASSWORD` in `.env`, and:
+
+```bash
+npm install          # builds better-sqlite3 (the only native dep)
+npm run deploy       # register slash commands
+npm run dev          # or: npm start
+```
+
 ### Environment variables
 
 See [`.env.example`](./.env.example). Required: `DISCORD_TOKEN`,
-`DISCORD_CLIENT_ID`. Optional: `DISCORD_GUILD_ID` (instant/staging command
-registration), `DATABASE_PATH`, `LOG_LEVEL`, `DEFAULT_VOLUME`,
-`LEAVE_ON_EMPTY_COOLDOWN_MS`, `LEAVE_ON_END_COOLDOWN_MS`, `DEFAULT_COOLDOWN_MS`.
+`DISCORD_CLIENT_ID`. Common: `LAVALINK_PASSWORD`, `DISCORD_GUILD_ID`,
+`DEFAULT_SEARCH_PLATFORM`, `DEFAULT_VOLUME`, `LOG_LEVEL`.
 
-> **Secrets:** the bot token is a full credential. It lives only in `.env`,
-> which is gitignored — never commit it.
+> **Secrets:** the bot token and Lavalink password are credentials. They live
+> only in `.env`, which is gitignored — never commit them.
 
 ## Scripts
 
@@ -91,33 +107,24 @@ registration), `DATABASE_PATH`, `LOG_LEVEL`, `DEFAULT_VOLUME`,
 | `npm run lint`      | ESLint.                               |
 | `npm run format`    | Prettier.                             |
 
-## Docker
-
-```bash
-cp .env.example .env   # fill it in
-docker compose up --build -d
-```
-
-The SQLite database persists in the `elfaria-data` named volume. The bot exposes
-no ports — it dials out to Discord and serves no HTTP.
-
 ## Project structure
 
 ```
 src/
 ├─ index.ts                # entry: boot, error handlers, graceful shutdown
-├─ client.ts               # Client + intents + command/cooldown collections
-├─ config.ts               # validated env config
+├─ client.ts               # Client + intents + LavalinkManager + collections
+├─ config.ts               # validated env config (incl. Lavalink node)
 ├─ commands/               # one file per slash command + index registry
-├─ events/                 # ready, interactionCreate (router), voiceStateUpdate
+├─ events/                 # ready (inits Lavalink), interactionCreate, voiceStateUpdate
 ├─ music/
-│  ├─ player.ts            # discord-player init, extractors, event wiring
+│  ├─ player.ts            # Lavalink event wiring + raw voice forwarding
 │  ├─ sources.ts           # swappable resolve(query) sourcing interface
-│  └─ QueueManager.ts      # typed queue helpers + node options
+│  └─ QueueManager.ts      # typed player/queue helpers
 ├─ db/                     # SQLite connection, guild settings, playlists
 ├─ cache/                  # in-memory TTL cache
 └─ lib/                    # logger, types, interaction helpers
 deploy-commands.ts         # REST slash-command registration
+lavalink/application.yml   # Lavalink config (+ youtube-source plugin)
 Dockerfile, docker-compose.yml
 .github/workflows/ci.yml
 ```
@@ -128,27 +135,38 @@ Dockerfile, docker-compose.yml
   `GuildVoiceStates`), `events/`.
 - **§2 Command layer** — `commands/`, `events/interactionCreate.ts` (router +
   3-second-ack pattern via `deferReply`), `deploy-commands.ts`.
-- **§3 Voice (encrypted UDP/Opus)** — `music/player.ts` via discord-player
-  (its `discord-voip` + `mediaplex`/Opus stack; in-process, Option A).
-- **§4 Sourcing pipeline** — `music/sources.ts`, isolated behind `resolve()`.
-- **§5 Queue & state** — `music/QueueManager.ts`.
+- **§3 Voice / audio offload (Lavalink, Option B)** — `lavalink/application.yml`
+  + the `lavalink` compose service do the audio; `music/player.ts` forwards raw
+  voice packets and reacts to Lavalink events.
+- **§4 Sourcing pipeline** — `music/sources.ts`, isolated behind `resolve()`;
+  the fragile YouTube extraction lives in Lavalink's plugin, not the bot.
+- **§5 Queue & state** — `music/QueueManager.ts` over Lavalink's per-guild player.
 - **§6 Persistence** — `db/` (SQLite via better-sqlite3).
-- **§7 Caching** — `cache/` (TTL Map for searches + guild settings).
+- **§7 Caching** — `cache/` (TTL Map for guild settings).
 - **§8 Rate limiting** — `@discordjs/rest` (built into discord.js) + per-user
   cooldowns in the router.
 - **§10 Reliability** — error handlers + graceful shutdown in `index.ts`,
-  pino logging in `lib/logger.ts`, auto-leave in `events/voiceStateUpdate.ts`.
-- **§11 Deployment** — `Dockerfile`, `docker-compose.yml`, CI, `.env` secrets.
+  pino logging, auto-leave in `events/voiceStateUpdate.ts`, node retry/reconnect.
+- **§11 Deployment** — `Dockerfile`, `docker-compose.yml` (bot + Lavalink), CI,
+  `.env` secrets.
 
-## Scaling beyond v1 (deliberately not built)
+## When YouTube breaks
 
-Per the doc, these arrive only when real scale forces them:
+Because audio is offloaded, YouTube fixes are isolated to the audio service:
 
-- **Audio offload → Lavalink** (doc §3 Option B): swap `music/player.ts` for a
-  Lavalink client; `docker-compose.yml` has commented stubs.
+1. Bump the `youtube-plugin` version in `lavalink/application.yml` (see the
+   [youtube-source releases](https://github.com/lavalink-devs/youtube-source)).
+2. `docker compose up -d --build lavalink`.
+
+SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
+
+## Scaling beyond this setup
+
+- **Multiple Lavalink nodes** (doc §3/§9): add more entries to the manager's
+  `nodes` array; lavalink-client balances sessions across them.
 - **Database → Postgres**, **cache → Redis** (doc §6–§7): the `db/` and `cache/`
-  modules expose small interfaces precisely so these swaps stay local.
-- **Sharding** (doc §9): wrap with discord.js `ShardingManager` once near ~2,500
+  modules expose small interfaces so these swaps stay local.
+- **Sharding** (doc §9): wrap with discord.js `ShardingManager` near ~2,500
   guilds.
 
 ## License

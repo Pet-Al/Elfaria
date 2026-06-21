@@ -21,7 +21,8 @@ FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-# ffmpeg-static ships its own binary in node_modules, so no apt ffmpeg needed.
+# Audio is offloaded to Lavalink, so the bot image needs no ffmpeg/opus — just
+# the built node_modules (better-sqlite3 is the only native dep).
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/tsconfig.json ./tsconfig.json

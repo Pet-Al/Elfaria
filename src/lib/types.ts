@@ -2,11 +2,9 @@ import type {
   AutocompleteInteraction,
   ChatInputCommandInteraction,
   ClientEvents,
-  GuildTextBasedChannel,
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
   SlashCommandSubcommandsOnlyBuilder,
-  User,
 } from 'discord.js';
 
 /**
@@ -33,14 +31,4 @@ export interface BotEvent<K extends keyof ClientEvents = keyof ClientEvents> {
   name: K;
   once?: boolean;
   execute: (...args: ClientEvents[K]) => unknown;
-}
-
-/**
- * Metadata we attach to every discord-player queue so events (which only
- * receive the queue) can reach back to the text channel that started playback
- * and know who requested it.
- */
-export interface QueueMetadata {
-  channel: GuildTextBasedChannel;
-  requestedBy: User;
 }

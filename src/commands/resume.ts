@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceContext, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
+import { getPlayer } from '../music/QueueManager.js';
 
 export const resume: Command = {
   data: new SlashCommandBuilder().setName('resume').setDescription('Resume a paused track.'),
@@ -9,17 +9,17 @@ export const resume: Command = {
     const voice = await getVoiceContext(interaction);
     if (!voice) return;
 
-    const queue = getQueue(interaction.guildId!);
-    if (!queue || !queue.currentTrack) {
+    const player = getPlayer(interaction);
+    if (!player?.queue.current) {
       await replyError(interaction, 'Nothing is playing.');
       return;
     }
-    if (!queue.node.isPaused()) {
+    if (!player.paused) {
       await replyError(interaction, 'Playback is not paused.');
       return;
     }
 
-    queue.node.resume();
+    await player.resume();
     await replyOk(interaction, '▶️ Resumed.');
   },
 };

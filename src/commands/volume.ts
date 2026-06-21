@@ -2,12 +2,12 @@ import { SlashCommandBuilder } from 'discord.js';
 import { getGuildSettings, updateGuildSettings } from '../db/guilds.js';
 import { isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
+import { getPlayer } from '../music/QueueManager.js';
 
 /**
  * Sets the playback volume. The chosen level is persisted as the guild's
- * default (doc §6) so it survives restarts and applies to future queues, and is
- * applied to the live queue immediately if something is playing.
+ * default (doc §6) so it survives restarts and applies to future players, and is
+ * applied to the live player immediately if something is playing.
  */
 export const volume: Command = {
   data: new SlashCommandBuilder()
@@ -32,8 +32,8 @@ export const volume: Command = {
 
     updateGuildSettings(interaction.guildId!, { defaultVolume: level });
 
-    const queue = getQueue(interaction.guildId!);
-    if (queue) queue.node.setVolume(level);
+    const player = getPlayer(interaction);
+    if (player) await player.setVolume(level);
 
     await replyOk(interaction, `🔊 Volume set to **${level}%**.`);
   },

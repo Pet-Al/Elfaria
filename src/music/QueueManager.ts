@@ -1,39 +1,62 @@
-import { type GuildQueue, useQueue } from 'discord-player';
-import { config } from '../config.js';
+import type { ChatInputCommandInteraction, User } from 'discord.js';
+import type { LavalinkManager, Player } from 'lavalink-client';
+import type { ElfariaClient } from '../client.js';
 import { getGuildSettings } from '../db/guilds.js';
-import type { QueueMetadata } from '../lib/types.js';
 
 /**
- * Queue helpers (doc §5).
+ * Queue/player helpers (doc §5).
  *
- * discord-player keeps the authoritative per-guild queue in memory; we don't
- * reinvent it. This module is just the thin, typed bridge the command layer
- * uses: a typed accessor for the active queue and a single place that builds
- * the queue's options (volume from persisted guild settings, auto-leave
- * timeouts from config). Keeping these in one spot means every command creates
- * queues that behave identically.
+ * Lavalink owns the authoritative per-guild player and queue in memory; we don't
+ * reinvent them. This module is the thin, typed bridge the command layer uses:
+ * reach the manager, get/create the guild's player, and a couple of formatting
+ * helpers. Keeping player creation in one place means every command creates
+ * players that behave identically (volume from settings, self-deafened).
  */
 
-export type ElfariaQueue = GuildQueue<QueueMetadata>;
-
-/** Get the active queue for a guild, or null if nothing is playing there. */
-export function getQueue(guildId: string): ElfariaQueue | null {
-  return useQueue(guildId) as ElfariaQueue | null;
+export function lavalink(interaction: ChatInputCommandInteraction): LavalinkManager {
+  return (interaction.client as ElfariaClient).lavalink;
 }
 
-/**
- * Build the node options for player.play(). Volume is sourced from the guild's
- * persisted default (doc §6); auto-leave behaviour from config (doc §10).
- */
-export function buildNodeOptions(guildId: string, metadata: QueueMetadata) {
-  const settings = getGuildSettings(guildId);
-  return {
-    metadata,
-    volume: settings.defaultVolume,
-    selfDeaf: true,
-    leaveOnEmpty: true,
-    leaveOnEmptyCooldown: config.music.leaveOnEmptyCooldownMs,
-    leaveOnEnd: true,
-    leaveOnEndCooldown: config.music.leaveOnEndCooldownMs,
-  };
+/** The active player for a guild, or undefined if none exists. */
+export function getPlayer(interaction: ChatInputCommandInteraction): Player | undefined {
+  return lavalink(interaction).getPlayer(interaction.guildId!);
+}
+
+/** Get the guild's player, creating + connecting it to the voice channel if needed. */
+export async function getOrCreatePlayer(
+  interaction: ChatInputCommandInteraction,
+  voiceChannelId: string,
+): Promise<Player> {
+  const manager = lavalink(interaction);
+  const guildId = interaction.guildId!;
+
+  let player = manager.getPlayer(guildId);
+  if (!player) {
+    const settings = getGuildSettings(guildId);
+    player = manager.createPlayer({
+      guildId,
+      voiceChannelId,
+      textChannelId: interaction.channelId,
+      selfDeaf: true,
+      volume: settings.defaultVolume,
+    });
+  }
+  if (!player.connected) await player.connect();
+  return player;
+}
+
+/** The requester object we store on tracks for "requested by" display. */
+export function requesterOf(user: User): { id: string; username: string } {
+  return { id: user.id, username: user.username };
+}
+
+/** Format a millisecond duration as h:mm:ss or m:ss. */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return 'live';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
 }

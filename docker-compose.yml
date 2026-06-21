@@ -1,29 +1,40 @@
-# Single-process v1 (doc §11). The bot runs as one always-on container.
+# Elfaria + Lavalink (doc §3 Option B, §9, §11).
 #
-# At scale (doc §3 Option B, §9) this is where you'd add `lavalink` and `redis`
-# services and wire the bot to them — stubs are sketched in comments below.
+# Two always-on containers on a private network:
+#   - lavalink: the audio service (does all sourcing/transcoding/streaming).
+#   - bot:      the discord.js gateway client; forwards voice to Lavalink.
+#
+# Set LAVALINK_PASSWORD in .env to secure the link (both services read it).
 services:
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    restart: unless-stopped
+    environment:
+      _JAVA_OPTIONS: -Xmx512m
+      SERVER_PORT: '2333'
+      LAVALINK_SERVER_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - lavalink-plugins:/opt/Lavalink/plugins
+    # Not published to the host — only the bot (same network) can reach it.
+    expose:
+      - '2333'
+
   bot:
     build: .
     restart: unless-stopped
     env_file: .env
+    # These override .env so the bot always reaches the lavalink container.
+    environment:
+      LAVALINK_HOST: lavalink
+      LAVALINK_PORT: '2333'
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+    depends_on:
+      - lavalink
     volumes:
       # Persist the SQLite database across container restarts/redeploys.
       - elfaria-data:/app/data
-    # No ports exposed: the bot connects out to Discord; it serves no HTTP.
-
-  # ── Future scaling (uncomment when offloading audio / sharding) ─────────────
-  # lavalink:
-  #   image: ghcr.io/lavalink-devs/lavalink:4
-  #   restart: unless-stopped
-  #   environment:
-  #     - SERVER_PORT=2333
-  #     - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD}
-  #   # Do NOT publish this port publicly — keep it on the internal network only.
-  #
-  # redis:
-  #   image: redis:7-alpine
-  #   restart: unless-stopped
 
 volumes:
   elfaria-data:
+  lavalink-plugins:

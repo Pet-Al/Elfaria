@@ -16,8 +16,8 @@ jobs:
           node-version: '22'
           cache: npm
 
-      # ubuntu-latest ships the build toolchain needed by the native deps
-      # (mediaplex, better-sqlite3).
+      # ubuntu-latest ships the build toolchain needed by the native dep
+      # (better-sqlite3).
       - name: Install dependencies
         run: npm ci
 

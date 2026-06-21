@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
+import { getPlayer } from '../music/QueueManager.js';
 
 export const skip: Command = {
   data: new SlashCommandBuilder().setName('skip').setDescription('Skip the current track.'),
@@ -13,14 +13,17 @@ export const skip: Command = {
       return;
     }
 
-    const queue = getQueue(interaction.guildId!);
-    if (!queue || !queue.currentTrack) {
+    const player = getPlayer(interaction);
+    if (!player?.queue.current) {
       await replyError(interaction, 'Nothing is playing.');
       return;
     }
 
-    const current = queue.currentTrack;
-    queue.node.skip();
-    await replyOk(interaction, `⏭️ Skipped **${current.title}**.`);
+    const current = player.queue.current;
+    // skip() throws when there's no next track; stop instead so the queue ends.
+    if (player.queue.tracks.length > 0) await player.skip();
+    else await player.stopPlaying();
+
+    await replyOk(interaction, `⏭️ Skipped **${current.info.title}**.`);
   },
 };

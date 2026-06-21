@@ -58,18 +58,23 @@ export const config = {
 
   music: {
     defaultVolume: intOption('DEFAULT_VOLUME', 80),
-    leaveOnEmptyCooldownMs: intOption('LEAVE_ON_EMPTY_COOLDOWN_MS', 120_000),
-    leaveOnEndCooldownMs: intOption('LEAVE_ON_END_COOLDOWN_MS', 120_000),
-    youtube: {
-      // Which Innertube client to stream YouTube with. The default WEB client
-      // needs signature deciphering, which YouTube frequently breaks; alternate
-      // clients (WEB_EMBEDDED / IOS / ANDROID / TV) often stream without it.
-      // This is a knob because which one works changes over time (doc §4).
-      streamClient: optional('YOUTUBE_STREAM_CLIENT', 'WEB_EMBEDDED'),
-      // Optional YouTube account cookie for authenticated streaming — the most
-      // reliable fix when anonymous extraction is blocked. Empty = anonymous.
-      cookie: optional('YOUTUBE_COOKIE', ''),
-    },
+    // How long an empty voice channel waits before the bot leaves (ms).
+    leaveOnEmptyMs: intOption('LEAVE_ON_EMPTY_COOLDOWN_MS', 120_000),
+    // How long after the queue ends before the bot leaves (ms).
+    leaveOnEndMs: intOption('LEAVE_ON_END_COOLDOWN_MS', 120_000),
+    // Default search source when a query isn't a link. Lavalink search prefixes:
+    // ytsearch | ytmsearch (YouTube Music) | scsearch (SoundCloud) | spsearch …
+    searchPlatform: optional('DEFAULT_SEARCH_PLATFORM', 'ytsearch'),
+  },
+
+  // Audio is offloaded to a Lavalink node (doc §3 Option B). The bot forwards
+  // voice connection info to Lavalink and sends play commands over this link;
+  // Lavalink does the sourcing, transcoding, encryption, and UDP streaming.
+  lavalink: {
+    host: optional('LAVALINK_HOST', 'lavalink'),
+    port: intOption('LAVALINK_PORT', 2333),
+    password: optional('LAVALINK_PASSWORD', 'youshallnotpass'),
+    secure: optional('LAVALINK_SECURE', 'false') === 'true',
   },
 
   commands: {

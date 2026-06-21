@@ -1,5 +1,5 @@
-import { useMainPlayer } from 'discord-player';
-import { EmbedBuilder, type GuildTextBasedChannel, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import type { Track } from 'lavalink-client';
 import {
   deletePlaylist,
   listPlaylists,
@@ -9,8 +9,9 @@ import {
 } from '../db/playlists.js';
 import { getVoiceContext, replyError, replyOk } from '../lib/interactions.js';
 import { logger } from '../lib/logger.js';
-import type { Command, QueueMetadata } from '../lib/types.js';
-import { buildNodeOptions, getQueue } from '../music/QueueManager.js';
+import type { Command } from '../lib/types.js';
+import { formatDuration, getOrCreatePlayer, getPlayer } from '../music/QueueManager.js';
+import { resolve } from '../music/sources.js';
 
 /**
  * Saved playlists (doc §6). The durable feature that justifies the database:
@@ -77,19 +78,19 @@ export const playlist: Command = {
 
     if (sub === 'save') {
       const name = interaction.options.getString('name', true);
-      const queue = getQueue(guildId);
-      if (!queue || (!queue.currentTrack && queue.tracks.size === 0)) {
+      const player = getPlayer(interaction);
+      if (!player || (!player.queue.current && player.queue.tracks.length === 0)) {
         await replyError(interaction, 'Nothing is playing to save.');
         return;
       }
 
-      const source = [queue.currentTrack, ...queue.tracks.toArray()].filter(
-        (t): t is NonNullable<typeof t> => t != null,
+      const source = [player.queue.current, ...(player.queue.tracks as Track[])].filter(
+        (t): t is Track => t != null,
       );
       const tracks: SavedTrack[] = source.map((t) => ({
-        title: t.title,
-        url: t.url,
-        duration: t.duration || null,
+        title: t.info.title,
+        url: t.info.uri,
+        duration: t.info.isStream ? null : formatDuration(t.info.duration),
       }));
 
       savePlaylist(guildId, userId, name, tracks);
@@ -110,29 +111,23 @@ export const playlist: Command = {
         return;
       }
 
-      const metadata: QueueMetadata = {
-        channel: interaction.channel as GuildTextBasedChannel,
-        requestedBy: interaction.user,
-      };
-      const player = useMainPlayer();
-
       try {
-        // Play the first track to establish the connection + queue, then add the rest.
-        await player.play(voice.voiceChannel, saved[0]!.url, {
-          nodeOptions: buildNodeOptions(guildId, metadata),
-          requestedBy: interaction.user,
-        });
-
-        const queue = getQueue(guildId);
-        let added = 1;
-        for (const track of saved.slice(1)) {
-          const result = await player.search(track.url, { requestedBy: interaction.user });
-          if (queue && result.hasTracks()) {
-            queue.addTrack(result.tracks[0]!);
+        const player = await getOrCreatePlayer(interaction, voice.voiceChannel.id);
+        let added = 0;
+        for (const track of saved) {
+          const result = await resolve(player, track.url, interaction.user);
+          if (result.tracks.length) {
+            player.queue.add(result.tracks[0]!);
             added += 1;
           }
         }
 
+        if (added === 0) {
+          await replyError(interaction, 'Could not load any tracks from that playlist.');
+          return;
+        }
+
+        if (!player.playing && !player.paused) await player.play();
         await interaction.editReply(`▶️ Loaded **${added}** track(s) from **${name}**.`);
       } catch (err) {
         logger.error({ err, guildId, name }, 'failed to load playlist');

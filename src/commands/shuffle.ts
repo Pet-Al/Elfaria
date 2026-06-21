@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
+import { getPlayer } from '../music/QueueManager.js';
 
 export const shuffle: Command = {
   data: new SlashCommandBuilder()
@@ -15,13 +15,13 @@ export const shuffle: Command = {
       return;
     }
 
-    const queue = getQueue(interaction.guildId!);
-    if (!queue || queue.tracks.size < 2) {
+    const player = getPlayer(interaction);
+    if (!player || player.queue.tracks.length < 2) {
       await replyError(interaction, 'Not enough tracks in the queue to shuffle.');
       return;
     }
 
-    queue.tracks.shuffle();
-    await replyOk(interaction, `🔀 Shuffled **${queue.tracks.size}** tracks.`);
+    await player.queue.shuffle();
+    await replyOk(interaction, `🔀 Shuffled **${player.queue.tracks.length}** tracks.`);
   },
 };

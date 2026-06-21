@@ -1,17 +1,10 @@
-import { QueueRepeatMode } from 'discord-player';
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import type { Track } from 'lavalink-client';
 import { replyError } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
+import { formatDuration, getPlayer } from '../music/QueueManager.js';
 
 const PER_PAGE = 10;
-
-const REPEAT_LABEL: Record<QueueRepeatMode, string> = {
-  [QueueRepeatMode.OFF]: 'off',
-  [QueueRepeatMode.TRACK]: 'track',
-  [QueueRepeatMode.QUEUE]: 'queue',
-  [QueueRepeatMode.AUTOPLAY]: 'autoplay',
-};
 
 export const queue: Command = {
   data: new SlashCommandBuilder()
@@ -21,24 +14,26 @@ export const queue: Command = {
       opt.setName('page').setDescription('Page number to view.').setMinValue(1),
     ),
   async execute(interaction) {
-    const q = getQueue(interaction.guildId!);
-    if (!q || (!q.currentTrack && q.tracks.size === 0)) {
+    const player = getPlayer(interaction);
+    if (!player || (!player.queue.current && player.queue.tracks.length === 0)) {
       await replyError(interaction, 'The queue is empty.');
       return;
     }
 
-    const tracks = q.tracks.toArray();
+    const tracks = player.queue.tracks as Track[];
     const maxPage = Math.max(1, Math.ceil(tracks.length / PER_PAGE));
     const requested = (interaction.options.getInteger('page') ?? 1) - 1;
     const page = Math.min(Math.max(requested, 0), maxPage - 1);
 
     const slice = tracks.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
-    const lines = slice.map(
-      (t, i) => `\`${page * PER_PAGE + i + 1}.\` [${t.title}](${t.url}) \`${t.duration}\``,
-    );
+    const lines = slice.map((t, i) => {
+      const length = t.info.isStream ? 'live' : formatDuration(t.info.duration);
+      return `\`${page * PER_PAGE + i + 1}.\` [${t.info.title}](${t.info.uri}) \`${length}\``;
+    });
 
-    const nowPlaying = q.currentTrack
-      ? `**Now playing:** [${q.currentTrack.title}](${q.currentTrack.url})\n`
+    const current = player.queue.current;
+    const nowPlaying = current
+      ? `**Now playing:** [${current.info.title}](${current.info.uri})\n`
       : '';
 
     const embed = new EmbedBuilder()
@@ -46,7 +41,7 @@ export const queue: Command = {
       .setTitle('🎵 Queue')
       .setDescription(`${nowPlaying}\n${lines.length ? lines.join('\n') : '*No upcoming tracks.*'}`)
       .setFooter({
-        text: `Page ${page + 1}/${maxPage} • ${tracks.length} in queue • repeat: ${REPEAT_LABEL[q.repeatMode]}`,
+        text: `Page ${page + 1}/${maxPage} • ${tracks.length} in queue • repeat: ${player.repeatMode}`,
       });
 
     await interaction.reply({ embeds: [embed] });

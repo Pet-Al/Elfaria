@@ -1,43 +1,61 @@
-import { getVoiceConnection } from 'discord-player';
 import { Events } from 'discord.js';
+import type { ElfariaClient } from '../client.js';
+import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 import type { BotEvent } from '../lib/types.js';
-import { getQueue } from '../music/QueueManager.js';
 
 /**
- * Empty-channel auto-leave safeguard (doc §10).
+ * Empty-channel auto-leave (doc §10).
  *
- * discord-player already leaves on empty while a queue is active (configured in
- * QueueManager.buildNodeOptions). This event is the backstop for the desync
- * case: the bot is sitting in a now-empty channel with no active queue. We free
- * the voice connection so we don't hold resources in a channel nobody's in.
+ * Lavalink handles leaving after the queue ends (onEmptyQueue.destroyAfterMs);
+ * this covers the other case — everyone leaves the voice channel while a track
+ * is still playing. We wait `leaveOnEmptyMs` (cancelled if someone rejoins) so a
+ * brief disconnect doesn't kill playback, then destroy the player.
  */
+const leaveTimers = new Map<string, NodeJS.Timeout>();
+
+function humansIn(client: ElfariaClient, guildId: string, channelId: string): number {
+  const channel = client.guilds.cache.get(guildId)?.channels.cache.get(channelId);
+  return channel?.isVoiceBased() ? channel.members.filter((m) => !m.user.bot).size : 0;
+}
+
 export const voiceStateUpdate: BotEvent<Events.VoiceStateUpdate> = {
   name: Events.VoiceStateUpdate,
   execute(oldState, newState) {
     const guild = newState.guild;
-    const botChannelId = guild.members.me?.voice.channelId;
-    if (!botChannelId) return;
+    const client = guild.client as ElfariaClient;
+    const player = client.lavalink.getPlayer(guild.id);
+    if (!player?.voiceChannelId) return;
 
     // Only react to changes that touched the bot's own channel.
-    if (oldState.channelId !== botChannelId && newState.channelId !== botChannelId) return;
-
-    const channel = guild.channels.cache.get(botChannelId);
-    if (!channel?.isVoiceBased()) return;
-
-    const humans = channel.members.filter((m) => !m.user.bot).size;
-    if (humans > 0) return;
-
-    // A live queue means discord-player owns the leave timer; don't interfere.
-    if (getQueue(guild.id)) return;
-
-    const connection = getVoiceConnection(guild.id);
-    if (connection) {
-      logger.info(
-        { guildId: guild.id },
-        'voice channel empty with no active queue — disconnecting',
-      );
-      connection.destroy();
+    if (
+      oldState.channelId !== player.voiceChannelId &&
+      newState.channelId !== player.voiceChannelId
+    ) {
+      return;
     }
+
+    const existing = leaveTimers.get(guild.id);
+
+    if (humansIn(client, guild.id, player.voiceChannelId) > 0) {
+      if (existing) {
+        clearTimeout(existing);
+        leaveTimers.delete(guild.id);
+      }
+      return;
+    }
+
+    if (existing) return; // a leave is already scheduled
+
+    const timer = setTimeout(() => {
+      leaveTimers.delete(guild.id);
+      const current = client.lavalink.getPlayer(guild.id);
+      if (current?.voiceChannelId && humansIn(client, guild.id, current.voiceChannelId) === 0) {
+        logger.info({ guildId: guild.id }, 'voice channel empty — leaving');
+        void current.destroy('Channel empty');
+      }
+    }, config.music.leaveOnEmptyMs);
+
+    leaveTimers.set(guild.id, timer);
   },
 };

@@ -1,0 +1,50 @@
+# Lavalink audio service configuration (doc §3 Option B).
+#
+# The bot sends play commands here; Lavalink does all sourcing, transcoding,
+# encryption, and UDP streaming. YouTube support comes from the youtube-source
+# plugin (Lavalink's built-in YouTube was removed in v4). When YouTube changes,
+# bump the plugin version below — you update this service, not the whole bot.
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  plugins:
+    # YouTube source plugin. Check https://github.com/lavalink-devs/youtube-source
+    # for the latest version if YouTube playback breaks, then rebuild.
+    - dependency: 'dev.lavalink.youtube:youtube-plugin:1.13.0'
+      repository: 'https://maven.lavalink.dev/releases'
+  server:
+    password: '${LAVALINK_SERVER_PASSWORD:youshallnotpass}'
+    sources:
+      # Disable Lavalink's built-in YouTube so the plugin handles it.
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    youtubePlaylistLoadLimit: 6
+    opusEncodingQuality: 10
+    resamplingQuality: LOW
+    trackStuckThresholdMs: 10000
+
+plugins:
+  youtube:
+    enabled: true
+    # Innertube clients the plugin rotates through. If YouTube streaming breaks,
+    # adjusting this list (or updating the plugin version above) is the fix.
+    clients:
+      - MUSIC
+      - WEB
+      - WEBEMBEDDED
+      - ANDROID_VR
+      - TVHTML5EMBEDDED
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO
