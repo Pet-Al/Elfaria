@@ -8,7 +8,6 @@ import type { BotEvent } from '../lib/types.js';
  * The command router (doc §2). A single interactionCreate handler looks up the
  * right command in the client's Collection and runs it. It also:
  *   - enforces per-user command cooldowns (doc §8, "your own rate limiting"),
- *   - dispatches autocomplete requests,
  *   - never lets a command error crash the process (doc §10) — errors are
  *     logged with context and reported to the user.
  */
@@ -42,18 +41,6 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
   name: Events.InteractionCreate,
   async execute(interaction) {
     const client = interaction.client as ElfariaClient;
-
-    // Autocomplete (fire-and-forget; failures must not throw to the user).
-    if (interaction.isAutocomplete()) {
-      const command = client.commands.get(interaction.commandName);
-      if (!command?.autocomplete) return;
-      try {
-        await command.autocomplete(interaction);
-      } catch (err) {
-        logger.warn({ err, command: interaction.commandName }, 'autocomplete failed');
-      }
-      return;
-    }
 
     if (!interaction.isChatInputCommand()) return;
 

@@ -13,7 +13,7 @@ import { getGuildSettings } from '../db/guilds.js';
  * players that behave identically (volume from settings, self-deafened).
  */
 
-export function lavalink(interaction: ChatInputCommandInteraction): LavalinkManager {
+function lavalink(interaction: ChatInputCommandInteraction): LavalinkManager {
   return (interaction.client as ElfariaClient).lavalink;
 }
 
