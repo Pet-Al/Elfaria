@@ -2,6 +2,7 @@ import { Collection, Events, MessageFlags } from 'discord.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
+import { instrumentCommand } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 import { handleButton } from './buttons.js';
 
@@ -96,7 +97,9 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
     }
 
     try {
-      await command.execute(interaction);
+      // instrumentCommand records RED metrics (rate/errors/duration) and
+      // re-throws so the existing error handling below is unchanged.
+      await instrumentCommand(command.data.name, () => command.execute(interaction));
     } catch (err) {
       logger.error(
         { err, command: interaction.commandName, guildId: interaction.guildId },

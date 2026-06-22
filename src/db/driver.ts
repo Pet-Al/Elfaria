@@ -155,8 +155,8 @@ class SqliteDriver implements DbDriver {
 
 // ── Postgres (pg) ─────────────────────────────────────────────────────────────
 
-/** Convert `?` placeholders to Postgres `$1, $2, …`. */
-function toPg(sql: string): string {
+/** Convert `?` placeholders to Postgres `$1, $2, …`. Exported for unit testing. */
+export function toPg(sql: string): string {
   let i = 0;
   return sql.replace(/\?/g, () => `$${++i}`);
 }

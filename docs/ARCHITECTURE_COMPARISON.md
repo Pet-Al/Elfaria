@@ -87,7 +87,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Capability | Status | Evidence / gap |
 |---|---|---|
 | Structured logging | ✅ | `pino` with structured fields throughout (`src/lib/logger.ts`); logs as a stream (12-factor). |
-| Metrics (RED/USE) | ❌ | **The biggest gap.** No Prometheus `/metrics`, no request/error/duration counters, no player-count gauge. The HPA even *wants* a `lavalink_playing_players` metric it can't get yet. |
+| Metrics (RED/USE) | 🟡 | Prometheus `/metrics` shipped (`src/lib/metrics.ts`): command RED metrics, process defaults, and live player/connected-node gauges, scraped via K8s annotations. **Remaining:** wire the player-count metric into the HPA via the Prometheus Adapter (it currently scales on CPU). |
 | Distributed tracing | ❌ | No OpenTelemetry spans across bot→Lavalink. |
 | Dashboards & alerting | ❌ | No Grafana/alert rules; failures are discovered by reading logs. |
 
@@ -97,7 +97,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 |---|---|---|
 | CI: lint + typecheck + image build | ✅ | `.github/workflows/ci.yml` runs ESLint, `tsc --noEmit`, and a Docker build on every push/PR. |
 | Static typing end-to-end | ✅ | TypeScript strict mode. |
-| Automated tests (unit/integration) | ❌ | No test suite — there is no `test` script and no `*.test.ts`. Correctness rests on types + lint + manual verification. **The highest-leverage gap after metrics.** |
+| Automated tests (unit/integration) | 🟡 | Starter suite on the built-in `node:test` runner, wired into CI (`src/**/*.test.ts`): `formatDuration`, `progressBar`, now-playing card structure, `toPg`. **Remaining:** command-handler and DB-repository tests, plus coverage gating. |
 | Load / soak testing | ❌ | No synthetic load harness to validate the HPA thresholds. |
 | Continuous **Deployment** (CD) | ❌ | CI builds but doesn't deploy; no canary/blue-green/progressive rollout. |
 
@@ -166,6 +166,10 @@ What it lacks is **operational maturity**, and in a clear priority order:
 None of these are architectural rewrites; they're additive layers. That's the
 honest headline: **Elfaria is built like a scalable system and run like a hobby
 project** — closing that gap is a matter of operational tooling, not redesign.
+
+Progress against this list is tracked as a living checklist in
+[ROADMAP.md](./ROADMAP.md). The first two items (metrics, tests) are already
+underway — see the 🟡 rows above.
 
 > Scope caveat: this is a design-level comparison. The scaling features are
 > verified to *function* (see README "Verifying the scale-out features"); they

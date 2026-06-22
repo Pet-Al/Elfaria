@@ -1,6 +1,7 @@
 import { ActivityType, Events } from 'discord.js';
 import type { ElfariaClient } from '../client.js';
 import { logger } from '../lib/logger.js';
+import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 
 /**
@@ -14,6 +15,7 @@ export const ready: BotEvent<Events.ClientReady> = {
   async execute(client) {
     const elfaria = client as ElfariaClient;
     await elfaria.lavalink.init({ id: client.user.id, username: client.user.username });
+    startMetricsServer(elfaria);
 
     logger.info(
       { user: client.user.tag, guilds: client.guilds.cache.size },

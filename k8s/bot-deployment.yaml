@@ -19,11 +19,19 @@ spec:
     metadata:
       labels:
         app: elfaria-bot
+      annotations:
+        # Let a Prometheus scraper discover the bot's /metrics endpoint.
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9090'
+        prometheus.io/path: /metrics
     spec:
       containers:
         - name: bot
           # Build and push your image, then set it here (or via kustomize images:).
           image: ghcr.io/pet-al/elfaria:latest
+          ports:
+            - name: metrics
+              containerPort: 9090
           env:
             - name: DISCORD_TOKEN
               valueFrom:

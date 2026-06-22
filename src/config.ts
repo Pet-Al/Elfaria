@@ -156,6 +156,13 @@ export const config = {
   commands: {
     defaultCooldownMs: intOption('DEFAULT_COOLDOWN_MS', 3000),
   },
+
+  // Prometheus metrics (doc §10). On by default on its own port; a scraper hits
+  // GET /metrics. Set METRICS_ENABLED=false to turn the endpoint off entirely.
+  metrics: {
+    enabled: optional('METRICS_ENABLED', 'true') !== 'false',
+    port: intOption('METRICS_PORT', 9090),
+  },
 } as const;
 
 export type Config = typeof config;
