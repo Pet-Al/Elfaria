@@ -42,6 +42,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-}
     depends_on:
       - lavalink
+    # Publish the Prometheus metrics endpoint so you can curl localhost:9090/metrics.
+    ports:
+      - '9090:9090'
     volumes:
       # Persist the SQLite database across container restarts/redeploys.
       - elfaria-data:/app/data

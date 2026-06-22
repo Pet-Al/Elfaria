@@ -94,6 +94,12 @@ export function startMetricsServer(client: ElfariaClient): void {
     return;
   }
 
+  // When sharded, every shard runs in the same container/process group, so each
+  // needs a distinct port (base + shard id) to avoid binding the same one twice.
+  // Single-process runs have no shard id and use the base port unchanged.
+  const shardId = client.shard?.ids[0] ?? 0;
+  const port = config.metrics.port + shardId;
+
   const server = createServer((req, res) => {
     if (req.method !== 'GET' || req.url !== '/metrics') {
       res.writeHead(404).end();
@@ -112,7 +118,7 @@ export function startMetricsServer(client: ElfariaClient): void {
   });
 
   server.on('error', (err) => logger.warn({ err }, 'metrics server error'));
-  server.listen(config.metrics.port, () => {
-    logger.info({ port: config.metrics.port }, 'metrics server listening on /metrics');
+  server.listen(port, () => {
+    logger.info({ port, shard: shardId }, 'metrics server listening on /metrics');
   });
 }
