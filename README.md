@@ -15,7 +15,11 @@ not the whole bot.
 > encryption, slash-commands-only with least-privilege intents, strict
 > TypeScript, containerized with CI, and resilient by design. The full argument,
 > with a legacy-vs-modern comparison and the capabilities you can light up next,
-> is in **[docs/FEATURE_GUIDE.md](./docs/FEATURE_GUIDE.md)**.
+> is in **[docs/FEATURE_GUIDE.md](./docs/FEATURE_GUIDE.md)**. For an honest,
+> evidence-backed comparison against production architectures (Discord, Netflix,
+> 12-factor/SRE) — what Elfaria has and what it's missing — see
+> **[docs/ARCHITECTURE_COMPARISON.md](./docs/ARCHITECTURE_COMPARISON.md)**.
+> Kubernetes autoscaling for the audio tier lives in **[k8s/](./k8s/)**.
 
 ## Features
 
