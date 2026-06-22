@@ -80,7 +80,10 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
   // 3. Playback lifecycle.
   client.lavalink
     .on('trackStart', (player, track) => {
-      logger.info({ guildId: player.guildId, track: track?.info.title }, 'playback started');
+      logger.info(
+        { guildId: player.guildId, node: player.node?.id, track: track?.info.title },
+        'playback started',
+      );
       if (track) {
         void send(client, player.textChannelId, {
           embeds: [nowPlayingEmbed(track)],

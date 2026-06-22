@@ -277,6 +277,59 @@ need any of this below a few thousand guilds.
 > Activate these only as you actually grow. A single process + one Lavalink node
 > comfortably serves many servers; sharding a small bot just adds moving parts.
 
+## Verifying the scale-out features
+
+To see all four working at once, bring up the full distributed stack with the
+override file (2 Lavalink nodes + Redis + Postgres + the bot sharded):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --build
+docker compose run --rm bot npm run deploy          # register commands (first time)
+```
+
+Then verify each (all commands below are run from the project directory):
+
+**Sharding** — the bot runs as 2 shard processes:
+```bash
+docker compose logs bot | grep -E "launched shard|gateway ready"
+# → "launched shard 0", "launched shard 1", and two "gateway ready" lines
+```
+
+**Multiple Lavalink nodes** — both nodes connect, and you can see which node
+serves playback:
+```bash
+docker compose logs bot | grep "lavalink node connected"
+# → one line for node "main" and one for node "second" (×2 with 2 shards)
+docker compose logs bot | grep "playback started"      # after you /play something
+# → includes  node: "main"  or  node: "second"  (sessions balance across them)
+```
+
+**Redis shared cache** — the bot logs the backend, and you can watch keys appear:
+```bash
+docker compose logs bot | grep "using Redis backend"
+/play lofi beats        # run this in Discord (a text search, not a link)
+docker compose exec redis redis-cli KEYS 'search:*'
+# → a cached search key now exists in Redis
+```
+
+**Postgres** — the bot logs the dialect, and rows land in Postgres:
+```bash
+docker compose logs bot | grep -iE "using Postgres|database initialised"
+# in Discord: run  /settings dj-role  (pick a role)  and/or  /playlist save <name>
+docker compose exec postgres psql -U elfaria -d elfaria -c '\dt'
+# → guild_settings, playlists, playlist_tracks
+docker compose exec postgres psql -U elfaria -d elfaria -c 'SELECT * FROM guild_settings;'
+# → the row you just wrote
+```
+
+Tear down the test stack (Postgres data persists in the `elfaria-pg` volume):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml down
+```
+
+> This stack is heavier (two JVMs + sharded bot). It's for verification/testing;
+> for normal use run the base `docker compose up -d`.
+
 ## License
 
 MIT
