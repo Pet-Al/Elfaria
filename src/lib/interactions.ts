@@ -78,11 +78,8 @@ export async function getVoiceContext(
  * that role — or with Manage Server / Administrator — may run gated commands.
  * If no DJ role is set, everyone is allowed.
  */
-export async function isDj(interaction: ChatInputCommandInteraction): Promise<boolean> {
-  if (!interaction.guild) return false;
-  const member = interaction.member;
-  if (!(member instanceof GuildMember)) return false;
-
+/** DJ check from a resolved member (shared by slash commands and buttons). */
+export async function isDjMember(guildId: string, member: GuildMember): Promise<boolean> {
   if (
     member.permissions.has(PermissionFlagsBits.ManageGuild) ||
     member.permissions.has(PermissionFlagsBits.Administrator)
@@ -90,7 +87,14 @@ export async function isDj(interaction: ChatInputCommandInteraction): Promise<bo
     return true;
   }
 
-  const { djRoleId } = await getGuildSettings(interaction.guild.id);
+  const { djRoleId } = await getGuildSettings(guildId);
   if (!djRoleId) return true; // no restriction configured
   return member.roles.cache.has(djRoleId);
+}
+
+export async function isDj(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guild) return false;
+  const member = interaction.member;
+  if (!(member instanceof GuildMember)) return false;
+  return isDjMember(interaction.guild.id, member);
 }

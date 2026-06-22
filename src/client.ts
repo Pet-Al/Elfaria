@@ -2,6 +2,7 @@ import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { LavalinkManager } from 'lavalink-client';
 import { config } from './config.js';
 import type { Command } from './lib/types.js';
+import { autoPlayFunction } from './music/autoplay.js';
 
 /**
  * The gateway client (doc §1) plus the Lavalink manager (doc §3 Option B).
@@ -51,8 +52,9 @@ export class ElfariaClient extends Client {
       autoSkip: true,
       playerOptions: {
         defaultSearchPlatform: config.music.searchPlatform as never,
-        // Leave shortly after the queue empties (doc §10).
-        onEmptyQueue: { destroyAfterMs: config.music.leaveOnEndMs },
+        // When the queue empties: optionally autoplay a related track (per-guild
+        // toggle via /autoplay); otherwise leave shortly after (doc §10).
+        onEmptyQueue: { destroyAfterMs: config.music.leaveOnEndMs, autoPlayFunction },
         // Don't try to reconnect a player after a hard disconnect — just clean up.
         onDisconnect: { autoReconnect: false, destroyPlayer: true },
       },

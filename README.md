@@ -24,6 +24,11 @@ not the whole bot.
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
   with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
+- **Now-playing button panel**: ⏯️ ⏭️ ⏹️ 🔀 📜 controls on every now-playing
+  message (same voice/DJ guards as the commands).
+- **Autoplay** (`/autoplay`): keep playing related tracks when the queue ends.
+- **Audio filters/EQ** (`/filter`): bass boost, nightcore, vaporwave, 8D,
+  karaoke, lowpass, and EQ presets — done by Lavalink, no quality cost on the bot.
 - **Multi-source** via Lavalink: YouTube, SoundCloud, Bandcamp, Twitch, Vimeo,
   direct URLs, plus **Spotify / Apple Music / Deezer** through the bundled
   LavaSrc plugin (Spotify just needs free API credentials — see
@@ -51,6 +56,8 @@ not the whole bot.
 | `/loop <mode>`                       | off / track / queue.                             |
 | `/shuffle`                           | Shuffle upcoming tracks.                         |
 | `/remove <position>`                 | Remove a track by its queue position.            |
+| `/autoplay`                          | Toggle related-track autoplay when the queue ends. |
+| `/filter <type>`                     | Apply an audio filter / EQ preset.               |
 | `/settings view\|dj-role`            | View settings / set the DJ role (Manage Server). |
 | `/playlist save\|load\|list\|delete` | Manage saved playlists.                          |
 

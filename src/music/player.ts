@@ -1,5 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { EmbedBuilder, type Client } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type Client,
+  EmbedBuilder,
+} from 'discord.js';
 import type { Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { logger } from '../lib/logger.js';
@@ -34,6 +40,17 @@ function nowPlayingEmbed(track: Track): EmbedBuilder {
     .setFooter({ text: requester?.username ? `Requested by ${requester.username}` : 'Elfaria' });
 }
 
+/** The now-playing control panel. Buttons are handled in events/buttons.ts. */
+function controlRow(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('np:playpause').setEmoji('⏯️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('np:skip').setEmoji('⏭️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('np:stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('np:shuffle').setEmoji('🔀').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('np:queue').setEmoji('📜').setStyle(ButtonStyle.Secondary),
+  );
+}
+
 async function send(client: Client, channelId: string | null, payload: object): Promise<void> {
   if (!channelId) return;
   const channel = client.channels.cache.get(channelId);
@@ -64,7 +81,12 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
   client.lavalink
     .on('trackStart', (player, track) => {
       logger.info({ guildId: player.guildId, track: track?.info.title }, 'playback started');
-      if (track) void send(client, player.textChannelId, { embeds: [nowPlayingEmbed(track)] });
+      if (track) {
+        void send(client, player.textChannelId, {
+          embeds: [nowPlayingEmbed(track)],
+          components: [controlRow()],
+        });
+      }
     })
     .on('queueEnd', (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');

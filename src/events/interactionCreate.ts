@@ -3,6 +3,7 @@ import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 import type { BotEvent } from '../lib/types.js';
+import { handleButton } from './buttons.js';
 
 /**
  * The command router (doc §2). A single interactionCreate handler looks up the
@@ -53,6 +54,16 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
         } catch (err) {
           logger.warn({ err, command: interaction.commandName }, 'autocomplete failed');
         }
+      }
+      return;
+    }
+
+    // Now-playing control panel buttons.
+    if (interaction.isButton()) {
+      try {
+        await handleButton(interaction);
+      } catch (err) {
+        logger.warn({ err, customId: interaction.customId }, 'button handler failed');
       }
       return;
     }

@@ -221,21 +221,21 @@ src/
 
 ---
 
-## What you can light up next (Lavalink superpowers)
+## Lavalink superpowers
 
-Because audio runs on Lavalink, a whole class of "premium" features is now cheap
-to add — they're platform capabilities, not rewrites:
+Because audio runs on Lavalink, a whole class of "premium" features is cheap —
+they're platform capabilities, not rewrites. Several now ship:
 
-- **Audio filters / DSP:** equalizer, bass boost, nightcore, vaporwave, karaoke,
-  tremolo, 8D — exposed by `lavalink-client`'s filter manager. A `/filter`
-  command is a thin wrapper.
-- **Autoplay / radio:** continue with related tracks when the queue ends
-  (`onEmptyQueue.autoPlayFunction`).
-- **More sources via plugins:** **LavaSrc** (Spotify / Apple Music / Deezer
-  first-class), **SponsorBlock** (skip non-music segments), **lyrics** plugins —
-  enabled in `lavalink/application.yml`, no bot rewrite.
-- **Buttons & select menus:** interaction components for a now-playing control
-  panel (skip/pause/queue) — the interaction plumbing is already in place.
+- **Audio filters / DSP** ✅ `/filter` — equalizer presets, bass boost,
+  nightcore, vaporwave, 8D, karaoke, lowpass, via `lavalink-client`'s filter
+  manager (the DSP runs on Lavalink, not the bot).
+- **Autoplay / radio** ✅ `/autoplay` — continues with related tracks when the
+  queue ends (`onEmptyQueue.autoPlayFunction`).
+- **Now-playing buttons** ✅ — a control panel (⏯️ ⏭️ ⏹️ 🔀 📜) on every
+  now-playing message, sharing the commands' voice/DJ guards.
+- **More sources via plugins:** **LavaSrc** (Spotify / Apple Music / Deezer) is
+  bundled; **SponsorBlock** and **lyrics** plugins are a config addition away —
+  no bot rewrite.
 
 ---
 
@@ -263,10 +263,9 @@ one Lavalink node — the right size for one-to-many servers — but the scale-o
 paths (multi-node, Redis, sharding) are built in and config-activated. Still
 deferred (all straightforward on this foundation):
 
-- Filters/EQ, autoplay, and button controls are **supported by the platform but
-  not yet surfaced as commands**.
 - Spotify/Apple/Deezer ship via the bundled LavaSrc plugin; Spotify just needs
   free API credentials (see the README's "Enabling Spotify").
+- Lyrics and SponsorBlock are available as Lavalink plugins (not yet wired).
 
 The reason these are *easy* additions rather than rewrites is the whole point of
 the architecture: the hard, future-proofing decisions — offloaded audio, DAVE,
