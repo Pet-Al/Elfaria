@@ -80,7 +80,15 @@ async function register(): Promise<void> {
 }
 
 const run = process.argv.includes('--list') ? list : register;
-run().catch((err) => {
-  logger.fatal({ err }, 'command registration failed');
-  process.exit(1);
-});
+run()
+  .then(() => {
+    // One-shot script: force a clean exit. Importing the command modules pulls
+    // in the search cache, and when REDIS_URL is set that open connection keeps
+    // the event loop alive — so the process would otherwise hang after the work
+    // is done (and get killed with SIGINT). The registration already succeeded.
+    process.exit(0);
+  })
+  .catch((err) => {
+    logger.fatal({ err }, 'command registration failed');
+    process.exit(1);
+  });
