@@ -4,10 +4,10 @@ import {
   ButtonStyle,
   ContainerBuilder,
   EmbedBuilder,
-  SectionBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
-  ThumbnailBuilder,
 } from 'discord.js';
 import type { Track } from 'lavalink-client';
 import { formatDuration } from './QueueManager.js';
@@ -16,15 +16,14 @@ import { formatDuration } from './QueueManager.js';
  * Now-playing card builders (doc roadmap, "rich UI").
  *
  * Two renderings of the same track:
- *   - nowPlayingCard()  — the modern Components V2 layout (the default). One
- *     accent-bordered container with the artwork as a thumbnail accessory beside
- *     the text, a divider, and the control buttons. This is what the bot posts
- *     on every track start and what `/nowplaying` shows.
- *   - nowPlayingEmbed() — the classic embed kept for `/nowplaying legacy:true`,
- *     so the old look is still one option away.
+ *   - nowPlayingCard()  — the modern Components V2 layout (the default). An
+ *     accent-bordered container: a text block, the artwork shown full-width via
+ *     a media gallery (so wide thumbnails aren't square-cropped), an optional
+ *     live progress bar, a divider, and the control buttons.
+ *   - nowPlayingEmbed() — the classic embed kept for `/nowplaying legacy:true`.
  *
- * Keeping both here (rather than inline in player.ts / nowplaying.ts) means the
- * styling lives in one place and the two callers can't drift apart.
+ * Keeping both here means the styling lives in one place and the two callers
+ * (player.ts auto-panel, /nowplaying) can't drift apart.
  */
 
 const ACCENT = 0x5865f2;
@@ -69,29 +68,33 @@ export interface CardOptions {
 export function nowPlayingCard(track: Track, options: CardOptions = {}): ContainerBuilder {
   const { disabled = false, positionMs, withControls = true } = options;
   const requester = track.requester as { username?: string } | undefined;
+  const live = positionMs !== undefined;
   const duration = track.info.isStream ? 'live' : formatDuration(track.info.duration);
 
-  const lines = [
-    '### ▶️ Now playing',
-    `**[${track.info.title}](${track.info.uri})**`,
-    `🎤 ${track.info.author || 'Unknown'}  •  ⏱️ ${duration}`,
-  ];
-  if (positionMs !== undefined) lines.push('', progressBar(positionMs, track.info.duration));
-  if (requester?.username) lines.push(`-# Requested by ${requester.username}`);
-  const text = lines.join('\n');
+  // Header text. Duration appears in exactly one place: inline here when there's
+  // no progress bar, otherwise the progress bar carries it (position / duration).
+  const header = ['### ▶️ Now playing', `**[${track.info.title}](${track.info.uri})**`];
+  const author = track.info.author || 'Unknown';
+  header.push(live ? `🎤 ${author}` : `🎤 ${author}  •  ⏱️ ${duration}`);
+  if (requester?.username) header.push(`-# Requested by ${requester.username}`);
 
   const container = new ContainerBuilder().setAccentColor(ACCENT);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header.join('\n')));
 
-  // A Section requires an accessory, so we only use one when there's artwork;
-  // otherwise the text goes straight into the container.
+  // Full-width media (a gallery item) rather than a square thumbnail accessory,
+  // so wide cover art / video thumbnails display without being cropped.
   if (track.info.artworkUrl) {
-    container.addSectionComponents(
-      new SectionBuilder()
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(text))
-        .setThumbnailAccessory(new ThumbnailBuilder().setURL(track.info.artworkUrl)),
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder().setURL(track.info.artworkUrl),
+      ),
     );
-  } else {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+  }
+
+  if (live) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(progressBar(positionMs, track.info.duration)),
+    );
   }
 
   if (withControls) {
