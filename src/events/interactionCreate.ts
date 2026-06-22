@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 import { instrumentCommand } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
-import { handleButton } from './buttons.js';
+import { handleButton, handleSelectMenu } from './buttons.js';
 
 /**
  * The command router (doc §2). A single interactionCreate handler looks up the
@@ -65,6 +65,16 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
         await handleButton(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'button handler failed');
+      }
+      return;
+    }
+
+    // Now-playing volume dropdown.
+    if (interaction.isStringSelectMenu()) {
+      try {
+        await handleSelectMenu(interaction);
+      } catch (err) {
+        logger.warn({ err, customId: interaction.customId }, 'select handler failed');
       }
       return;
     }

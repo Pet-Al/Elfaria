@@ -10,11 +10,18 @@ import { logger } from './src/lib/logger.js';
  *
  *   - With DISCORD_GUILD_ID set → registers to that one guild INSTANTLY, and
  *     CLEARS global commands so you don't get duplicates (a global copy AND a
- *     guild copy of the same command showing twice in the picker).
+ *     guild copy of the same command showing twice in the picker). The fast
+ *     dev/iteration path.
  *   - Without it → registers GLOBALLY; propagation can take up to ~1 hour.
  *
- * Pass `--list` to print what's currently registered in each scope (handy for
- * diagnosing duplicate commands) without changing anything.
+ * Flags:
+ *   --global  Force GLOBAL registration even when DISCORD_GUILD_ID is set, and
+ *             clear that guild's copy so commands don't show twice. This is the
+ *             "ship to every server" path (npm run deploy:global) — you iterate
+ *             fast with the instant guild deploy, then flip to global to release.
+ *   --list    Print what's currently registered in each scope (handy for
+ *             diagnosing duplicates / which guild your commands are in) without
+ *             changing anything.
  */
 type RegisteredCommand = { name: string };
 
@@ -44,17 +51,40 @@ async function list(): Promise<void> {
   }
 }
 
-async function register(): Promise<void> {
+async function register(forceGlobal: boolean): Promise<void> {
   const body = commands.map((command) => command.data.toJSON());
+  const goGlobal = forceGlobal || !config.discord.guildId;
 
-  if (config.discord.guildId) {
+  if (goGlobal) {
+    // GLOBAL: available in every server the bot is in (propagation up to ~1h).
+    await rest.put(Routes.applicationCommands(config.discord.clientId), { body });
+
+    // Clear the dev-guild copy (if configured) so the same commands don't show
+    // twice in that one server.
+    let clearedGuild = 0;
+    if (config.discord.guildId) {
+      const existingGuild = (await rest.get(
+        Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
+      )) as RegisteredCommand[];
+      await rest.put(
+        Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
+        { body: [] },
+      );
+      clearedGuild = existingGuild.length;
+    }
+
+    logger.info(
+      { count: body.length, clearedGuild },
+      'registered GLOBAL commands (propagation can take up to ~1 hour)',
+    );
+  } else {
+    // GUILD: instant in the configured server — the fast dev/iteration path.
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discord.guildId),
       { body },
     );
 
-    // Clear any GLOBAL registrations so commands don't appear twice. Report how
-    // many we removed so it's obvious whether duplicates existed.
+    // Clear any GLOBAL registrations so commands don't appear twice.
     const existingGlobal = (await rest.get(
       Routes.applicationCommands(config.discord.clientId),
     )) as RegisteredCommand[];
@@ -70,16 +100,12 @@ async function register(): Promise<void> {
           'from clients. Restart your Discord app (Ctrl+R) to refresh sooner.',
       );
     }
-  } else {
-    await rest.put(Routes.applicationCommands(config.discord.clientId), { body });
-    logger.info(
-      { count: body.length },
-      'registered global commands (propagation can take up to ~1 hour)',
-    );
   }
 }
 
-const run = process.argv.includes('--list') ? list : register;
+const run = process.argv.includes('--list')
+  ? list
+  : () => register(process.argv.includes('--global'));
 run()
   .then(() => {
     // One-shot script: force a clean exit. Importing the command modules pulls

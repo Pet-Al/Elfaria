@@ -48,7 +48,7 @@ async function disablePanel(player: Player): Promise<void> {
   await previous
     .edit({
       flags: MessageFlags.IsComponentsV2,
-      components: [nowPlayingCard(track, { disabled: true })],
+      components: [nowPlayingCard(track, { disabled: true, withVolumeSelect: true })],
     })
     .catch(() => undefined);
 }
@@ -81,9 +81,18 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       if (!track) return;
       // Retire the previous song's panel so only the current controls are live.
       await disablePanel(player);
+      const upNext = player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown');
       const message = await send(client, player.textChannelId, {
         flags: MessageFlags.IsComponentsV2,
-        components: [nowPlayingCard(track)],
+        components: [
+          nowPlayingCard(track, {
+            withVolumeSelect: true,
+            volume: player.volume,
+            repeatMode: player.repeatMode,
+            upNext,
+            queueLength: player.queue.tracks.length,
+          }),
+        ],
       });
       if (message) {
         player.set('npMessage', message);

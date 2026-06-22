@@ -1,6 +1,7 @@
-import { type ButtonInteraction, MessageFlags } from 'discord.js';
+import { type ButtonInteraction, MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
 import type { Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
+import { updateGuildSettings } from '../db/guilds.js';
 import { isDjMember } from '../lib/interactions.js';
 
 /**
@@ -91,4 +92,45 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     default:
       await reply('❌ Unknown control.');
   }
+}
+
+/**
+ * Now-playing volume dropdown (customId np:volume). DJ-gated like /volume; the
+ * chosen level is applied to the live player and persisted as the guild default.
+ */
+export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (interaction.customId !== 'np:volume') return;
+  const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
+
+  if (!interaction.inCachedGuild()) {
+    await reply('❌ This only works in a server.');
+    return;
+  }
+
+  const client = interaction.client as ElfariaClient;
+  const player = client.lavalink.getPlayer(interaction.guildId);
+  if (!player) {
+    await reply('❌ Nothing is playing.');
+    return;
+  }
+
+  const member = interaction.member;
+  if (member.voice.channelId !== player.voiceChannelId) {
+    await reply("❌ You must be in the bot's voice channel to do that.");
+    return;
+  }
+  if (!(await isDjMember(interaction.guildId, member))) {
+    await reply('❌ You need the DJ role to change the volume.');
+    return;
+  }
+
+  const level = Number.parseInt(interaction.values[0] ?? '', 10);
+  if (Number.isNaN(level)) {
+    await reply('❌ Invalid volume.');
+    return;
+  }
+
+  await updateGuildSettings(interaction.guildId, { defaultVolume: level });
+  await player.setVolume(level);
+  await reply(`🔊 Volume set to **${level}%**.`);
 }

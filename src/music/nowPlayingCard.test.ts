@@ -11,6 +11,7 @@ const track = {
     duration: 215_000,
     isStream: false,
     artworkUrl: 'https://img/abc.jpg',
+    sourceName: 'youtube',
   },
   requester: { id: '123', username: 'Alex' },
 } as unknown as Track;
@@ -60,6 +61,25 @@ test('nowPlayingCard: missing artwork omits the section thumbnail', () => {
   const json = nowPlayingCard(noArt).toJSON();
   assert.ok(!json.components.some((c) => c.type === SECTION));
   assert.ok(json.components.some((c) => c.type === TEXT_DISPLAY));
+});
+
+test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume select', () => {
+  const json = nowPlayingCard(track, {
+    withVolumeSelect: true,
+    volume: 80,
+    repeatMode: 'queue',
+    upNext: ['Two', 'Three', 'Four', 'Five'],
+    queueLength: 5,
+  }).toJSON();
+  const blob = JSON.stringify(json);
+  assert.ok(blob.includes('YouTube'), 'source badge present'); // track.sourceName = youtube
+  assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
+  assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
+  assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
+  // Two action rows: buttons + the np:volume select (component type 3).
+  const rows = json.components.filter((c) => c.type === ACTION_ROW);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1]?.components[0]?.type, 3);
 });
 
 test('controlRow: disabled greys out every button', () => {

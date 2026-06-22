@@ -32,7 +32,16 @@ export const nowplaying: Command = {
 
     await interaction.reply({
       flags: MessageFlags.IsComponentsV2,
-      components: [nowPlayingCard(track, { positionMs: player.position, withControls: false })],
+      components: [
+        nowPlayingCard(track, {
+          positionMs: player.position,
+          withControls: false,
+          volume: player.volume,
+          repeatMode: player.repeatMode,
+          upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
+          queueLength: player.queue.tracks.length,
+        }),
+      ],
     });
   },
 };

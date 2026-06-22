@@ -11,6 +11,7 @@
     "start": "tsx src/index.ts",
     "start:sharded": "tsx src/shard.ts",
     "deploy": "tsx deploy-commands.ts",
+    "deploy:global": "tsx deploy-commands.ts --global",
     "deploy:list": "tsx deploy-commands.ts --list",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
