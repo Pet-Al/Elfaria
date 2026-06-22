@@ -46,19 +46,31 @@ export interface LavalinkNodeConfig {
   secure: boolean;
 }
 
+/** The single node from LAVALINK_HOST/PORT/PASSWORD (the default). */
+function singleNodeFromEnv(): LavalinkNodeConfig {
+  return {
+    id: 'main',
+    host: optional('LAVALINK_HOST', 'lavalink'),
+    port: intOption('LAVALINK_PORT', 2333),
+    authorization: optional('LAVALINK_PASSWORD', 'youshallnotpass'),
+    secure: optional('LAVALINK_SECURE', 'false') === 'true',
+  };
+}
+
 /**
  * Build the Lavalink node list (doc §3/§9, "more Lavalink nodes"). Set
  * LAVALINK_NODES to a JSON array for multiple nodes; otherwise fall back to the
- * single node from LAVALINK_HOST/PORT/PASSWORD (the default, unchanged).
+ * single node above. An invalid value warns and falls back rather than crashing
+ * the bot — one malformed optional var shouldn't take everything down.
  */
 function parseLavalinkNodes(): LavalinkNodeConfig[] {
   const raw = process.env.LAVALINK_NODES;
-  if (raw && raw.trim() !== '') {
-    let parsed: Partial<LavalinkNodeConfig>[];
-    try {
-      parsed = JSON.parse(raw) as Partial<LavalinkNodeConfig>[];
-    } catch (err) {
-      throw new Error(`LAVALINK_NODES must be a valid JSON array: ${(err as Error).message}`);
+  if (!raw || raw.trim() === '') return [singleNodeFromEnv()];
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<LavalinkNodeConfig>[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('expected a non-empty JSON array');
     }
     return parsed.map((n, i) => ({
       id: n.id ?? `node-${i + 1}`,
@@ -67,16 +79,15 @@ function parseLavalinkNodes(): LavalinkNodeConfig[] {
       authorization: n.authorization ?? 'youshallnotpass',
       secure: n.secure ?? false,
     }));
+  } catch (err) {
+    // config.ts can't import the logger (it would be circular), so use console.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[config] Ignoring invalid LAVALINK_NODES (${(err as Error).message}); ` +
+        'using the single LAVALINK_HOST/PORT node instead.',
+    );
+    return [singleNodeFromEnv()];
   }
-  return [
-    {
-      id: 'main',
-      host: optional('LAVALINK_HOST', 'lavalink'),
-      port: intOption('LAVALINK_PORT', 2333),
-      authorization: optional('LAVALINK_PASSWORD', 'youshallnotpass'),
-      secure: optional('LAVALINK_SECURE', 'false') === 'true',
-    },
-  ];
 }
 
 const shardingMode = optional('SHARDING', 'off').toLowerCase();
