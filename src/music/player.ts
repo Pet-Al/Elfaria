@@ -5,8 +5,9 @@ import {
   ButtonStyle,
   type Client,
   EmbedBuilder,
+  type Message,
 } from 'discord.js';
-import type { Track } from 'lavalink-client';
+import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { logger } from '../lib/logger.js';
 import { formatDuration } from './QueueManager.js';
@@ -40,23 +41,67 @@ function nowPlayingEmbed(track: Track): EmbedBuilder {
     .setFooter({ text: requester?.username ? `Requested by ${requester.username}` : 'Elfaria' });
 }
 
-/** The now-playing control panel. Buttons are handled in events/buttons.ts. */
-function controlRow(): ActionRowBuilder<ButtonBuilder> {
+/**
+ * The now-playing control panel. Buttons are handled in events/buttons.ts.
+ * `disabled` greys them out — used to retire a previous song's panel so old
+ * messages don't keep working forever (Discord components never expire on their
+ * own; we have to disable them explicitly).
+ */
+function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('np:playpause').setEmoji('⏯️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('np:skip').setEmoji('⏭️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('np:stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('np:shuffle').setEmoji('🔀').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('np:queue').setEmoji('📜').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('np:playpause')
+      .setEmoji('⏯️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId('np:skip')
+      .setEmoji('⏭️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId('np:stop')
+      .setEmoji('⏹️')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId('np:shuffle')
+      .setEmoji('🔀')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId('np:queue')
+      .setEmoji('📜')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
   );
 }
 
-async function send(client: Client, channelId: string | null, payload: object): Promise<void> {
-  if (!channelId) return;
+async function send(
+  client: Client,
+  channelId: string | null,
+  payload: object,
+): Promise<Message | undefined> {
+  if (!channelId) return undefined;
   const channel = client.channels.cache.get(channelId);
-  if (channel?.isSendable()) {
-    await channel.send(payload).catch((err) => logger.warn({ err }, 'failed to send message'));
-  }
+  if (!channel?.isSendable()) return undefined;
+  return channel.send(payload).catch((err) => {
+    logger.warn({ err }, 'failed to send message');
+    return undefined;
+  });
+}
+
+/**
+ * Grey out the buttons on a guild's previous now-playing panel, if one is
+ * tracked. We keep only the current song's controls live: when a new track
+ * starts (or the queue ends / player is destroyed) the old panel is disabled
+ * so stale messages — even from days ago — stop responding.
+ */
+async function disablePanel(player: Player): Promise<void> {
+  const previous = player.get<Message | undefined>('npMessage');
+  if (!previous) return;
+  player.set('npMessage', undefined);
+  await previous.edit({ components: [controlRow(true)] }).catch(() => undefined);
 }
 
 export function registerLavalinkEvents(client: ElfariaClient): void {
@@ -79,20 +124,23 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
 
   // 3. Playback lifecycle.
   client.lavalink
-    .on('trackStart', (player, track) => {
+    .on('trackStart', async (player, track) => {
       logger.info(
         { guildId: player.guildId, node: player.node?.id, track: track?.info.title },
         'playback started',
       );
-      if (track) {
-        void send(client, player.textChannelId, {
-          embeds: [nowPlayingEmbed(track)],
-          components: [controlRow()],
-        });
-      }
+      if (!track) return;
+      // Retire the previous song's panel so only the current controls are live.
+      await disablePanel(player);
+      const message = await send(client, player.textChannelId, {
+        embeds: [nowPlayingEmbed(track)],
+        components: [controlRow()],
+      });
+      if (message) player.set('npMessage', message);
     })
     .on('queueEnd', (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
+      void disablePanel(player);
       void send(client, player.textChannelId, {
         content: '✅ Queue finished. Leaving soon if nothing else is added.',
       });
@@ -108,5 +156,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     })
     .on('playerDisconnect', (player) => {
       logger.info({ guildId: player.guildId }, 'player disconnected from voice');
+    })
+    .on('playerDestroy', (player) => {
+      // Stop button / inactivity leave: disable whatever panel is still showing.
+      void disablePanel(player);
     });
 }
