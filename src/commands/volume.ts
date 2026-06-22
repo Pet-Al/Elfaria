@@ -20,17 +20,17 @@ export const volume: Command = {
     const level = interaction.options.getInteger('level');
 
     if (level === null) {
-      const current = getGuildSettings(interaction.guildId!).defaultVolume;
+      const current = (await getGuildSettings(interaction.guildId!)).defaultVolume;
       await replyOk(interaction, `🔊 Current default volume is **${current}%**.`);
       return;
     }
 
-    if (!isDj(interaction)) {
+    if (!(await isDj(interaction))) {
       await replyError(interaction, 'You need the DJ role to change the volume.');
       return;
     }
 
-    updateGuildSettings(interaction.guildId!, { defaultVolume: level });
+    await updateGuildSettings(interaction.guildId!, { defaultVolume: level });
 
     const player = getPlayer(interaction);
     if (player) await player.setVolume(level);

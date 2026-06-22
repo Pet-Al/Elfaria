@@ -38,6 +38,8 @@ services:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
       # Empty unless you enable the redis service below (shared search cache).
       REDIS_URL: ${REDIS_URL:-}
+      # Empty = SQLite (default). Set to use the postgres service below.
+      DATABASE_URL: ${DATABASE_URL:-}
     depends_on:
       - lavalink
     volumes:
@@ -56,5 +58,22 @@ services:
   #   expose:
   #     - '6379'
 
+  # ── Optional Postgres (doc §6/§9) ───────────────────────────────────────────
+  # Uncomment this service AND set in .env:
+  #   DATABASE_URL=postgres://elfaria:elfaria@postgres:5432/elfaria
+  # to use Postgres instead of the embedded SQLite file.
+  # postgres:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: elfaria
+  #     POSTGRES_PASSWORD: elfaria
+  #     POSTGRES_DB: elfaria
+  #   volumes:
+  #     - elfaria-pg:/var/lib/postgresql/data
+  #   expose:
+  #     - '5432'
+
 volumes:
   elfaria-data:
+  # elfaria-pg:

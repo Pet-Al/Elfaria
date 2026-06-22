@@ -17,7 +17,7 @@ import { registerLavalinkEvents } from './music/player.js';
 const client = new ElfariaClient();
 
 async function main(): Promise<void> {
-  initDatabase();
+  await initDatabase();
   loadCommands(client);
   registerEvents(client);
   registerLavalinkEvents(client);
@@ -53,7 +53,7 @@ async function shutdown(signal: string): Promise<void> {
   }
 
   try {
-    closeDatabase();
+    await closeDatabase();
   } catch (err) {
     logger.warn({ err }, 'error while closing database on shutdown');
   }

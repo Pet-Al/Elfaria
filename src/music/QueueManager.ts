@@ -32,7 +32,7 @@ export async function getOrCreatePlayer(
 
   let player = manager.getPlayer(guildId);
   if (!player) {
-    const settings = getGuildSettings(guildId);
+    const settings = await getGuildSettings(guildId);
     player = manager.createPlayer({
       guildId,
       voiceChannelId,

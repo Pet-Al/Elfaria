@@ -10,7 +10,7 @@ export const shuffle: Command = {
   async execute(interaction) {
     const voice = await getVoiceContext(interaction);
     if (!voice) return;
-    if (!isDj(interaction)) {
+    if (!(await isDj(interaction))) {
       await replyError(interaction, 'You need the DJ role to shuffle.');
       return;
     }

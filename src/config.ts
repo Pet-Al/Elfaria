@@ -92,8 +92,12 @@ export const config = {
     guildId: optional('DISCORD_GUILD_ID', ''),
   },
 
+  // Durable state (doc §6). SQLite by default (embedded, zero-config). Set
+  // DATABASE_URL to a postgres://… connection string to use Postgres instead —
+  // the data layer picks the driver automatically.
   database: {
     path: optional('DATABASE_PATH', './data/elfaria.db'),
+    url: optional('DATABASE_URL', ''),
   },
 
   log: {

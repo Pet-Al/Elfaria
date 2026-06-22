@@ -251,8 +251,8 @@ single process, so nothing changes until you opt in (see the README "Scaling").
   id/count, so command/voice code is unchanged.
 - **Shared cache → Redis:** set `REDIS_URL` and the search cache moves to Redis,
   shared across all shards/processes; empty = in-memory.
-- **Database → Postgres:** *in progress* — the `db/` layer is moving behind an
-  async driver so `DATABASE_URL` selects Postgres, with SQLite as the default.
+- **Database → Postgres:** set `DATABASE_URL` and the same dialect-agnostic
+  queries run on Postgres via an async driver; empty = embedded SQLite (default).
 
 ---
 
@@ -267,8 +267,6 @@ deferred (all straightforward on this foundation):
   not yet surfaced as commands**.
 - Spotify/Apple/Deezer ship via the bundled LavaSrc plugin; Spotify just needs
   free API credentials (see the README's "Enabling Spotify").
-- **Postgres** is in progress (the DB layer is moving behind an async driver);
-  SQLite is the default until then.
 
 The reason these are *easy* additions rather than rewrites is the whole point of
 the architecture: the hard, future-proofing decisions — offloaded audio, DAVE,

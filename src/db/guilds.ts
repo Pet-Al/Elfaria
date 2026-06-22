@@ -1,13 +1,15 @@
-import { config } from '../config.js';
 import { cache } from '../cache/index.js';
-import { db } from './index.js';
+import { config } from '../config.js';
+import { db } from './driver.js';
 
 /**
  * Per-guild settings repository (doc §6).
  *
  * Reads go through the in-memory cache (doc §7) so hot paths — e.g. resolving
- * the default volume on every /play — don't hit SQLite each time. Writes update
- * the row and invalidate the cache entry.
+ * the default volume or DJ role — don't hit the DB each time. This cache is
+ * intentionally per-process: the database is the shared source of truth, so an
+ * extra in-memory layer stays correct even when sharded. Writes upsert the row
+ * and refresh the cache entry.
  */
 
 export interface GuildSettings {
@@ -24,19 +26,6 @@ interface GuildSettingsRow {
 
 const cacheKey = (guildId: string) => `guild:${guildId}`;
 
-const selectStmt = db.prepare<[string], GuildSettingsRow>(
-  'SELECT guild_id, default_volume, dj_role_id FROM guild_settings WHERE guild_id = ?',
-);
-
-const upsertStmt = db.prepare(`
-  INSERT INTO guild_settings (guild_id, default_volume, dj_role_id, updated_at)
-  VALUES (@guildId, @defaultVolume, @djRoleId, unixepoch())
-  ON CONFLICT (guild_id) DO UPDATE SET
-    default_volume = excluded.default_volume,
-    dj_role_id     = excluded.dj_role_id,
-    updated_at     = unixepoch()
-`);
-
 function rowToSettings(row: GuildSettingsRow): GuildSettings {
   return {
     guildId: row.guild_id,
@@ -46,32 +35,42 @@ function rowToSettings(row: GuildSettingsRow): GuildSettings {
 }
 
 function defaults(guildId: string): GuildSettings {
-  return {
-    guildId,
-    defaultVolume: config.music.defaultVolume,
-    djRoleId: null,
-  };
+  return { guildId, defaultVolume: config.music.defaultVolume, djRoleId: null };
 }
 
 /** Returns stored settings, or sensible defaults if the guild has none yet. */
-export function getGuildSettings(guildId: string): GuildSettings {
+export async function getGuildSettings(guildId: string): Promise<GuildSettings> {
   const cached = cache.get<GuildSettings>(cacheKey(guildId));
   if (cached) return cached;
 
-  const row = selectStmt.get(guildId);
+  const row = await db.get<GuildSettingsRow>(
+    'SELECT guild_id, default_volume, dj_role_id FROM guild_settings WHERE guild_id = ?',
+    [guildId],
+  );
   const settings = row ? rowToSettings(row) : defaults(guildId);
   cache.set(cacheKey(guildId), settings);
   return settings;
 }
 
 /** Patch one or more settings fields, persisting and refreshing the cache. */
-export function updateGuildSettings(
+export async function updateGuildSettings(
   guildId: string,
   patch: Partial<Omit<GuildSettings, 'guildId'>>,
-): GuildSettings {
-  const current = getGuildSettings(guildId);
+): Promise<GuildSettings> {
+  const current = await getGuildSettings(guildId);
   const next: GuildSettings = { ...current, ...patch };
-  upsertStmt.run(next);
+  const now = Math.floor(Date.now() / 1000);
+
+  await db.run(
+    `INSERT INTO guild_settings (guild_id, default_volume, dj_role_id, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (guild_id) DO UPDATE SET
+       default_volume = excluded.default_volume,
+       dj_role_id     = excluded.dj_role_id,
+       updated_at     = excluded.updated_at`,
+    [next.guildId, next.defaultVolume, next.djRoleId, now],
+  );
+
   cache.set(cacheKey(guildId), next);
   return next;
 }

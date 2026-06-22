@@ -26,7 +26,7 @@ export const settings: Command = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'view') {
-      const current = getGuildSettings(guildId);
+      const current = await getGuildSettings(guildId);
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle('⚙️ Server settings')
@@ -44,7 +44,7 @@ export const settings: Command = {
 
     if (sub === 'dj-role') {
       const role = interaction.options.getRole('role');
-      updateGuildSettings(guildId, { djRoleId: role?.id ?? null });
+      await updateGuildSettings(guildId, { djRoleId: role?.id ?? null });
       await replyOk(
         interaction,
         role

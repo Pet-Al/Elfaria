@@ -53,7 +53,7 @@ export const playlist: Command = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'list') {
-      const playlists = listPlaylists(guildId, userId);
+      const playlists = await listPlaylists(guildId, userId);
       if (playlists.length === 0) {
         await replyError(interaction, 'You have no saved playlists. Use `/playlist save`.');
         return;
@@ -70,7 +70,7 @@ export const playlist: Command = {
 
     if (sub === 'delete') {
       const name = interaction.options.getString('name', true);
-      const ok = deletePlaylist(guildId, userId, name);
+      const ok = await deletePlaylist(guildId, userId, name);
       if (ok) await replyOk(interaction, `🗑️ Deleted playlist **${name}**.`);
       else await replyError(interaction, `You have no playlist named **${name}**.`);
       return;
@@ -93,7 +93,7 @@ export const playlist: Command = {
         duration: t.info.isStream ? null : formatDuration(t.info.duration),
       }));
 
-      savePlaylist(guildId, userId, name, tracks);
+      await savePlaylist(guildId, userId, name, tracks);
       await replyOk(interaction, `💾 Saved **${tracks.length}** track(s) as **${name}**.`);
       return;
     }
@@ -105,7 +105,7 @@ export const playlist: Command = {
       if (!voice) return;
 
       const name = interaction.options.getString('name', true);
-      const saved = loadPlaylistTracks(guildId, userId, name);
+      const saved = await loadPlaylistTracks(guildId, userId, name);
       if (!saved || saved.length === 0) {
         await replyError(interaction, `You have no playlist named **${name}**.`);
         return;

@@ -262,9 +262,10 @@ need any of this below a few thousand guilds.
   `npm run start:sharded`). The launcher (`src/shard.ts`) spawns one bot process
   per shard via `ShardingManager`; each shard is an ordinary process with its own
   Lavalink connection, and discord.js injects the shard id/count automatically.
-- **Database → Postgres** — *coming next.* The `db/` layer is being refactored
-  behind an async driver so `DATABASE_URL=postgres://…` selects Postgres while
-  SQLite stays the default. Until then, SQLite is the store.
+- **Database → Postgres** — set `DATABASE_URL=postgres://…` (and enable the
+  `postgres` service in `docker-compose.yml`). The `db/` layer runs the same
+  dialect-agnostic queries on either engine; leave it empty for the embedded
+  SQLite file (default). Schema is auto-created on first boot.
 
 > Activate these only as you actually grow. A single process + one Lavalink node
 > comfortably serves many servers; sharding a small bot just adds moving parts.
