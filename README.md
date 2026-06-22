@@ -287,6 +287,33 @@ docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --build
 docker compose run --rm bot npm run deploy          # register commands (first time)
 ```
 
+### How the compose files layer
+
+`-f docker-compose.yml -f docker-compose.scale.yml` **merges** the two files, and
+**later files win**. The base file is your single-machine setup (bot + one
+Lavalink, single process, SQLite, reading `.env`). The override *adds* services
+(`lavalink2`, `redis`, `postgres`), swaps the bot's command to `start:sharded`,
+and sets the scale env vars (`LAVALINK_NODES`, `REDIS_URL`, `DATABASE_URL`,
+`SHARDING`, `SHARD_COUNT`) **directly in the service's `environment:` block**.
+
+Environment-variable precedence for a service, lowest → highest:
+
+1. values baked into the image (`ENV` in the Dockerfile)
+2. `env_file: .env` (your `.env`)
+3. the service's `environment:` block in the compose file
+4. variables exported in the shell that runs `docker compose`
+
+So when you launch **with both `-f` flags**, the override's `environment:` (step 3)
+**always wins over your `.env`** (step 2) — the distributed stack runs with its
+own node/Redis/Postgres/sharding values no matter what `.env` says. When you
+launch the **base file alone**, there's no override, so `.env` is what applies —
+which is why scale vars set in `.env` would make the base file try to reach
+services it doesn't start. Keep scale switches in the override, defaults in `.env`.
+
+> Tip: `${VAR:-default}` inside a compose file means "use `$VAR` from `.env`/shell,
+> else this default". That's why `LAVALINK_PASSWORD` flows from `.env` into both
+> containers, while `LAVALINK_NODES` in the scale file is a hard-coded literal.
+
 Then verify each (all commands below are run from the project directory):
 
 **Sharding** — the bot runs as 2 shard processes:
