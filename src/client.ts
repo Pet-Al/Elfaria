@@ -36,19 +36,15 @@ export class ElfariaClient extends Client {
     });
 
     this.lavalink = new LavalinkManager({
-      nodes: [
-        {
-          id: 'main',
-          host: config.lavalink.host,
-          port: config.lavalink.port,
-          authorization: config.lavalink.password,
-          secure: config.lavalink.secure,
-          // Lavalink's first boot downloads the YouTube plugin and can take a
-          // while; keep retrying so the bot connects once the node is ready.
-          retryAmount: 60,
-          retryDelay: 5000,
-        },
-      ],
+      // One or more nodes (doc §9). lavalink-client balances sessions across
+      // them; configure extra nodes via LAVALINK_NODES (see config.ts).
+      nodes: config.lavalink.nodes.map((node) => ({
+        ...node,
+        // Lavalink's first boot downloads plugins and can take a while; keep
+        // retrying so the bot connects once each node is ready.
+        retryAmount: 60,
+        retryDelay: 5000,
+      })),
       // How Lavalink's voice updates get back to Discord: send the op-4 payload
       // out over this guild's shard websocket.
       sendToShard: (guildId, payload) => this.guilds.cache.get(guildId)?.shard?.send(payload),

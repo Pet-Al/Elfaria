@@ -37,6 +37,50 @@ function intOption(name: string, fallback: number): number {
 
 const nodeEnv = optional('NODE_ENV', 'development');
 
+/** One Lavalink node's connection details. */
+export interface LavalinkNodeConfig {
+  id: string;
+  host: string;
+  port: number;
+  authorization: string;
+  secure: boolean;
+}
+
+/**
+ * Build the Lavalink node list (doc §3/§9, "more Lavalink nodes"). Set
+ * LAVALINK_NODES to a JSON array for multiple nodes; otherwise fall back to the
+ * single node from LAVALINK_HOST/PORT/PASSWORD (the default, unchanged).
+ */
+function parseLavalinkNodes(): LavalinkNodeConfig[] {
+  const raw = process.env.LAVALINK_NODES;
+  if (raw && raw.trim() !== '') {
+    let parsed: Partial<LavalinkNodeConfig>[];
+    try {
+      parsed = JSON.parse(raw) as Partial<LavalinkNodeConfig>[];
+    } catch (err) {
+      throw new Error(`LAVALINK_NODES must be a valid JSON array: ${(err as Error).message}`);
+    }
+    return parsed.map((n, i) => ({
+      id: n.id ?? `node-${i + 1}`,
+      host: n.host ?? 'lavalink',
+      port: n.port ?? 2333,
+      authorization: n.authorization ?? 'youshallnotpass',
+      secure: n.secure ?? false,
+    }));
+  }
+  return [
+    {
+      id: 'main',
+      host: optional('LAVALINK_HOST', 'lavalink'),
+      port: intOption('LAVALINK_PORT', 2333),
+      authorization: optional('LAVALINK_PASSWORD', 'youshallnotpass'),
+      secure: optional('LAVALINK_SECURE', 'false') === 'true',
+    },
+  ];
+}
+
+const shardingMode = optional('SHARDING', 'off').toLowerCase();
+
 export const config = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
@@ -67,14 +111,27 @@ export const config = {
     searchPlatform: optional('DEFAULT_SEARCH_PLATFORM', 'ytsearch'),
   },
 
-  // Audio is offloaded to a Lavalink node (doc §3 Option B). The bot forwards
-  // voice connection info to Lavalink and sends play commands over this link;
-  // Lavalink does the sourcing, transcoding, encryption, and UDP streaming.
+  // Audio is offloaded to Lavalink node(s) (doc §3 Option B / §9). The bot
+  // forwards voice connection info and sends play commands; Lavalink does the
+  // sourcing, transcoding, encryption, and UDP streaming. lavalink-client
+  // balances player sessions across all configured nodes.
   lavalink: {
-    host: optional('LAVALINK_HOST', 'lavalink'),
-    port: intOption('LAVALINK_PORT', 2333),
-    password: optional('LAVALINK_PASSWORD', 'youshallnotpass'),
-    secure: optional('LAVALINK_SECURE', 'false') === 'true',
+    nodes: parseLavalinkNodes(),
+  },
+
+  // Optional shared cache (doc §7/§9). Empty = in-memory (single process);
+  // set REDIS_URL (e.g. redis://redis:6379) to share the search cache across
+  // shards/processes.
+  redis: {
+    url: optional('REDIS_URL', ''),
+  },
+
+  // Optional sharding (doc §9). Off by default — a single process is correct
+  // until ~2,500 guilds. SHARDING=on|auto runs the bot under ShardingManager
+  // (npm run start:sharded); SHARD_COUNT is "auto" or a number.
+  sharding: {
+    enabled: ['on', 'auto', 'true', '1'].includes(shardingMode),
+    totalShards: optional('SHARD_COUNT', 'auto'),
   },
 
   commands: {

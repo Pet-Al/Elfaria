@@ -239,29 +239,36 @@ to add — they're platform capabilities, not rewrites:
 
 ---
 
-## Scaling path (designed-in, not bolted-on)
+## Scaling path (built in, config-activated)
 
-- **More Lavalink nodes:** add entries to the manager's `nodes`; sessions balance
-  across them. Audio scales independently of the bot.
-- **Sharding:** wrap with discord.js `ShardingManager` (or hybrid-sharding) as
-  you approach Discord's ~2,500-guild sharding requirement.
-- **Shared state:** the cache interface is Redis-shaped; the DB layer can move to
-  Postgres — both without touching command logic.
+These are implemented and switched on by configuration — defaults keep the bot a
+single process, so nothing changes until you opt in (see the README "Scaling").
+
+- **More Lavalink nodes:** set `LAVALINK_NODES` (JSON); lavalink-client balances
+  sessions across them. Audio scales independently of the bot.
+- **Sharding:** `SHARDING=on` + `npm run start:sharded` launches one bot process
+  per shard via `ShardingManager` (`src/shard.ts`); discord.js injects shard
+  id/count, so command/voice code is unchanged.
+- **Shared cache → Redis:** set `REDIS_URL` and the search cache moves to Redis,
+  shared across all shards/processes; empty = in-memory.
+- **Database → Postgres:** *in progress* — the `db/` layer is moving behind an
+  async driver so `DATABASE_URL` selects Postgres, with SQLite as the default.
 
 ---
 
 ## Honest limitations & roadmap
 
-Flagship doesn't mean finished. Current scope is a single-process bot + one
-Lavalink node, which is the right size for one-to-many servers. Not yet built
-(all intentionally deferred, all straightforward on this foundation):
+Flagship doesn't mean finished. The default runtime is a single-process bot +
+one Lavalink node — the right size for one-to-many servers — but the scale-out
+paths (multi-node, Redis, sharding) are built in and config-activated. Still
+deferred (all straightforward on this foundation):
 
 - Filters/EQ, autoplay, and button controls are **supported by the platform but
   not yet surfaced as commands**.
 - Spotify/Apple/Deezer ship via the bundled LavaSrc plugin; Spotify just needs
   free API credentials (see the README's "Enabling Spotify").
-- No sharding yet (unnecessary below thousands of guilds).
-- Search caching is left to Lavalink (the app cache currently fronts settings).
+- **Postgres** is in progress (the DB layer is moving behind an async driver);
+  SQLite is the default until then.
 
 The reason these are *easy* additions rather than rewrites is the whole point of
 the architecture: the hard, future-proofing decisions — offloaded audio, DAVE,

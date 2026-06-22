@@ -36,11 +36,25 @@ services:
       LAVALINK_HOST: lavalink
       LAVALINK_PORT: '2333'
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      # Empty unless you enable the redis service below (shared search cache).
+      REDIS_URL: ${REDIS_URL:-}
     depends_on:
       - lavalink
     volumes:
       # Persist the SQLite database across container restarts/redeploys.
       - elfaria-data:/app/data
+    # To run sharded (only needed near ~2,500 guilds, doc §9), override the
+    # command and set SHARDING=on in .env:
+    #   command: ['npm', 'run', 'start:sharded']
+
+  # ── Optional shared cache (doc §7/§9) ───────────────────────────────────────
+  # Uncomment this service AND set REDIS_URL=redis://redis:6379 in .env to share
+  # the search cache across processes/shards. Not needed for a single process.
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   expose:
+  #     - '6379'
 
 volumes:
   elfaria-data:

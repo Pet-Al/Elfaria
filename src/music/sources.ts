@@ -1,5 +1,7 @@
 import type { Player, SearchResult } from 'lavalink-client';
 import type { User } from 'discord.js';
+import { searchCache } from '../cache/search.js';
+import { config } from '../config.js';
 import { requesterOf } from './QueueManager.js';
 
 /**
@@ -11,14 +13,32 @@ import { requesterOf } from './QueueManager.js';
  * update Lavalink, not the bot. This wrapper keeps that boundary in one place so
  * command logic never talks to the search API directly.
  *
- * Lavalink auto-detects links; for plain text it applies the player's default
- * search platform (config.music.searchPlatform).
+ * Plain-text searches are cached (in-memory, or Redis when configured) so a
+ * popular query skips Lavalink. Links and playlists are not cached (they're
+ * cheap/unique to re-resolve). The cached result's tracks are re-stamped with
+ * the current requester so "requested by" stays correct per play.
  */
 export async function resolve(
   player: Player,
   query: string,
   requestedBy: User,
 ): Promise<SearchResult> {
-  // We only ever do resolved searches, so the result is a SearchResult.
-  return player.search({ query }, requesterOf(requestedBy)) as Promise<SearchResult>;
+  const requester = requesterOf(requestedBy);
+  const cacheKey = `search:${config.music.searchPlatform}:${query.toLowerCase().trim()}`;
+
+  const cached = await searchCache.get(cacheKey);
+  if (cached?.tracks.length) {
+    for (const track of cached.tracks) track.requester = requester;
+    return cached;
+  }
+
+  const result = (await player.search({ query }, requester)) as SearchResult;
+
+  // Cache only single-track and text-search results — not playlists (large) or
+  // errors/empties.
+  if (result.tracks.length && (result.loadType === 'search' || result.loadType === 'track')) {
+    await searchCache.set(cacheKey, result);
+  }
+
+  return result;
 }

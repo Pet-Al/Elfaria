@@ -245,14 +245,29 @@ searches Spotify. (To make plain `/play <text>` search Spotify by default, set
 > Spotify audio is streamed). Treat the Client Secret like a password and keep it
 > in `.env`.
 
-## Scaling beyond this setup
+## Scaling (doc §9)
 
-- **Multiple Lavalink nodes** (doc §3/§9): add more entries to the manager's
-  `nodes` array; lavalink-client balances sessions across them.
-- **Database → Postgres**, **cache → Redis** (doc §6–§7): the `db/` and `cache/`
-  modules expose small interfaces so these swaps stay local.
-- **Sharding** (doc §9): wrap with discord.js `ShardingManager` near ~2,500
-  guilds.
+Everything below is **built in and config-activated** — defaults keep the bot a
+single process so nothing changes until you opt in. You almost certainly don't
+need any of this below a few thousand guilds.
+
+- **Multiple Lavalink nodes** — set `LAVALINK_NODES` to a JSON array (see
+  `.env.example`). lavalink-client balances player sessions across all nodes;
+  leave it empty to use the single node from `LAVALINK_HOST/PORT/PASSWORD`.
+- **Shared cache → Redis** — set `REDIS_URL` (and enable the `redis` service in
+  `docker-compose.yml`). The search cache then lives in Redis so every
+  process/shard shares it; empty = in-memory per process.
+- **Sharding** — required by Discord near ~2,500 guilds. Set `SHARDING=on` and
+  run `npm run start:sharded` (or override the compose `command` to
+  `npm run start:sharded`). The launcher (`src/shard.ts`) spawns one bot process
+  per shard via `ShardingManager`; each shard is an ordinary process with its own
+  Lavalink connection, and discord.js injects the shard id/count automatically.
+- **Database → Postgres** — *coming next.* The `db/` layer is being refactored
+  behind an async driver so `DATABASE_URL=postgres://…` selects Postgres while
+  SQLite stays the default. Until then, SQLite is the store.
+
+> Activate these only as you actually grow. A single process + one Lavalink node
+> comfortably serves many servers; sharding a small bot just adds moving parts.
 
 ## License
 
