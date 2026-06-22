@@ -1,22 +1,18 @@
-import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { replyError } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { formatDuration, getPlayer } from '../music/QueueManager.js';
-
-const BAR_SIZE = 18;
-
-function progressBar(positionMs: number, durationMs: number): string {
-  if (!durationMs || durationMs <= 0) return '🔴 LIVE';
-  const ratio = Math.min(positionMs / durationMs, 1);
-  const filled = Math.round(ratio * BAR_SIZE);
-  const bar = '▬'.repeat(filled) + '🔘' + '▬'.repeat(Math.max(BAR_SIZE - filled, 0));
-  return `${bar}\n\`${formatDuration(positionMs)} / ${formatDuration(durationMs)}\``;
-}
+import { getPlayer } from '../music/QueueManager.js';
+import { nowPlayingCard, nowPlayingEmbed } from '../music/nowPlayingCard.js';
 
 export const nowplaying: Command = {
   data: new SlashCommandBuilder()
     .setName('nowplaying')
-    .setDescription('Show the track currently playing.'),
+    .setDescription('Show the track currently playing.')
+    .addBooleanOption((option) =>
+      option
+        .setName('legacy')
+        .setDescription('Show the classic embed view instead of the modern card.'),
+    ),
   async execute(interaction) {
     const player = getPlayer(interaction);
     if (!player?.queue.current) {
@@ -25,24 +21,18 @@ export const nowplaying: Command = {
     }
 
     const track = player.queue.current;
-    const requester = track.requester as { id?: string } | undefined;
 
-    const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('🎶 Now playing')
-      .setDescription(
-        `**[${track.info.title}](${track.info.uri})**\n\n${progressBar(player.position, track.info.duration)}`,
-      )
-      .addFields(
-        { name: 'Author', value: track.info.author || 'Unknown', inline: true },
-        {
-          name: 'Requested by',
-          value: requester?.id ? `<@${requester.id}>` : 'Unknown',
-          inline: true,
-        },
-      )
-      .setThumbnail(track.info.artworkUrl);
+    // Default: the modern Components V2 card (a live snapshot — no buttons, since
+    // the persistent control panel already lives on the auto-posted message).
+    // `legacy:true` falls back to the classic embed.
+    if (interaction.options.getBoolean('legacy')) {
+      await interaction.reply({ embeds: [nowPlayingEmbed(track, player.position)] });
+      return;
+    }
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({
+      flags: MessageFlags.IsComponentsV2,
+      components: [nowPlayingCard(track, { positionMs: player.position, withControls: false })],
+    });
   },
 };

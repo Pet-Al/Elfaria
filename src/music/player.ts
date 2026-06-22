@@ -1,16 +1,9 @@
 import { EventEmitter } from 'node:events';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  type Client,
-  EmbedBuilder,
-  type Message,
-} from 'discord.js';
+import { type Client, type Message, MessageFlags } from 'discord.js';
 import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { logger } from '../lib/logger.js';
-import { formatDuration } from './QueueManager.js';
+import { nowPlayingCard } from './nowPlayingCard.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
@@ -20,62 +13,9 @@ import { formatDuration } from './QueueManager.js';
  *      UDP connection (this is the bridge that makes offloaded audio work).
  *   2. Log node lifecycle (connect / error / disconnect) — our observability
  *      into the audio service (doc §10).
- *   3. Announce track starts and surface track errors in the bound text channel.
+ *   3. Announce track starts (a Components V2 card with controls) and surface
+ *      track errors in the bound text channel.
  */
-
-function nowPlayingEmbed(track: Track): EmbedBuilder {
-  const requester = track.requester as { username?: string } | undefined;
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('▶️ Now playing')
-    .setDescription(`**[${track.info.title}](${track.info.uri})**`)
-    .addFields(
-      { name: 'Author', value: track.info.author || 'Unknown', inline: true },
-      {
-        name: 'Duration',
-        value: track.info.isStream ? 'live' : formatDuration(track.info.duration),
-        inline: true,
-      },
-    )
-    .setThumbnail(track.info.artworkUrl)
-    .setFooter({ text: requester?.username ? `Requested by ${requester.username}` : 'Elfaria' });
-}
-
-/**
- * The now-playing control panel. Buttons are handled in events/buttons.ts.
- * `disabled` greys them out — used to retire a previous song's panel so old
- * messages don't keep working forever (Discord components never expire on their
- * own; we have to disable them explicitly).
- */
-function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('np:playpause')
-      .setEmoji('⏯️')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
-    new ButtonBuilder()
-      .setCustomId('np:skip')
-      .setEmoji('⏭️')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
-    new ButtonBuilder()
-      .setCustomId('np:stop')
-      .setEmoji('⏹️')
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(disabled),
-    new ButtonBuilder()
-      .setCustomId('np:shuffle')
-      .setEmoji('🔀')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
-    new ButtonBuilder()
-      .setCustomId('np:queue')
-      .setEmoji('📜')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
-  );
-}
 
 async function send(
   client: Client,
@@ -95,13 +35,22 @@ async function send(
  * Grey out the buttons on a guild's previous now-playing panel, if one is
  * tracked. We keep only the current song's controls live: when a new track
  * starts (or the queue ends / player is destroyed) the old panel is disabled
- * so stale messages — even from days ago — stop responding.
+ * so stale messages — even from days ago — stop responding. Because the card is
+ * Components V2 we rebuild the whole container (from the stored track) with the
+ * buttons disabled rather than editing the buttons in isolation.
  */
 async function disablePanel(player: Player): Promise<void> {
   const previous = player.get<Message | undefined>('npMessage');
-  if (!previous) return;
+  const track = player.get<Track | undefined>('npTrack');
   player.set('npMessage', undefined);
-  await previous.edit({ components: [controlRow(true)] }).catch(() => undefined);
+  player.set('npTrack', undefined);
+  if (!previous || !track) return;
+  await previous
+    .edit({
+      flags: MessageFlags.IsComponentsV2,
+      components: [nowPlayingCard(track, { disabled: true })],
+    })
+    .catch(() => undefined);
 }
 
 export function registerLavalinkEvents(client: ElfariaClient): void {
@@ -133,10 +82,13 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       // Retire the previous song's panel so only the current controls are live.
       await disablePanel(player);
       const message = await send(client, player.textChannelId, {
-        embeds: [nowPlayingEmbed(track)],
-        components: [controlRow()],
+        flags: MessageFlags.IsComponentsV2,
+        components: [nowPlayingCard(track)],
       });
-      if (message) player.set('npMessage', message);
+      if (message) {
+        player.set('npMessage', message);
+        player.set('npTrack', track);
+      }
     })
     .on('queueEnd', (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
