@@ -72,11 +72,15 @@ function parseLavalinkNodes(): LavalinkNodeConfig[] {
     if (!Array.isArray(parsed) || parsed.length === 0) {
       throw new Error('expected a non-empty JSON array');
     }
+    // Per-node auth is optional: omit it and every node inherits LAVALINK_PASSWORD.
+    // This keeps orchestrator configs (e.g. the k8s LAVALINK_NODES) free of the
+    // secret — the password comes from one place (the env/Secret) for all nodes.
+    const fallbackAuth = optional('LAVALINK_PASSWORD', 'youshallnotpass');
     return parsed.map((n, i) => ({
       id: n.id ?? `node-${i + 1}`,
       host: n.host ?? 'lavalink',
       port: n.port ?? 2333,
-      authorization: n.authorization ?? 'youshallnotpass',
+      authorization: n.authorization ?? fallbackAuth,
       secure: n.secure ?? false,
     }));
   } catch (err) {

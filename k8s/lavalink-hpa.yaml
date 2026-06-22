@@ -1,0 +1,60 @@
+# HorizontalPodAutoscaler — the "dynamic scaling" piece.
+#
+# It watches the Lavalink StatefulSet's CPU utilisation and adds/removes pods to
+# hold the target. Each new pod (lavalink-1, lavalink-2, …) comes up with its
+# stable DNS name; the bot already has a node entry pointing at it (LAVALINK_NODES
+# is pre-sized to maxReplicas), so lavalink-client connects as soon as the pod is
+# ready and starts routing new players to it. Scale-in removes the highest
+# ordinal first.
+#
+# CPU is the simplest signal. For a music workload the better signal is "active
+# players per node" — expose it from Lavalink via Prometheus and use a
+# custom/external metric here (see the commented block). CPU correlates well
+# enough to start with (transcoding is CPU-bound).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: lavalink
+  namespace: elfaria
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: lavalink
+  minReplicas: 1
+  # IMPORTANT: keep this in sync with the number of nodes declared in
+  # LAVALINK_NODES in k8s/bot-deployment.yaml. The bot can only use pods it has a
+  # node entry for, so maxReplicas must not exceed that count.
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      # React fast to load spikes.
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleDown:
+      # Scale in slowly: removing a pod kills the player sessions living on it
+      # (Lavalink has no session migration), so we wait until load is durably low.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+  # --- Active-players autoscaling (preferred, needs Prometheus Adapter) ---
+  # metrics:
+  #   - type: Pods
+  #     pods:
+  #       metric:
+  #         name: lavalink_playing_players
+  #       target:
+  #         type: AverageValue
+  #         averageValue: "80"

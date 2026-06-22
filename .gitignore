@@ -9,6 +9,9 @@ dist/
 .env.*
 !.env.example
 
+# Kubernetes Secret with real credentials (keep only the .example)
+k8s/secrets.yaml
+
 # SQLite database files (runtime state)
 data/*.db
 data/*.db-shm

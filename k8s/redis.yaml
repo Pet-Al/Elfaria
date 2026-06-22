@@ -1,0 +1,42 @@
+# Redis — the shared search cache for all bot processes/shards.
+# Single replica is fine for a cache (it's not the source of truth). For
+# production HA use a managed Redis or the Bitnami/Redis Operator chart.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: elfaria
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: '50m'
+              memory: '64Mi'
+            limits:
+              cpu: '250m'
+              memory: '256Mi'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: elfaria
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379

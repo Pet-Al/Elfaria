@@ -1,0 +1,23 @@
+# Headless service (clusterIP: None) for the Lavalink StatefulSet.
+#
+# Headless = no single virtual IP / no load balancing. Instead each pod gets a
+# STABLE DNS name: lavalink-0.lavalink-hl.elfaria.svc.cluster.local, lavalink-1…
+# That's exactly what we need: the bot registers ONE lavalink-client node per
+# pod ordinal, so it can address each Lavalink instance individually and balance
+# player sessions across them itself (a normal load-balanced Service would pin
+# the bot's WebSocket to a single random pod and defeat horizontal scaling).
+apiVersion: v1
+kind: Service
+metadata:
+  name: lavalink-hl
+  namespace: elfaria
+  labels:
+    app: lavalink
+spec:
+  clusterIP: None
+  selector:
+    app: lavalink
+  ports:
+    - name: ws
+      port: 2333
+      targetPort: 2333

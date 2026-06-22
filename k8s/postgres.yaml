@@ -1,0 +1,73 @@
+# Postgres — durable state (guild settings, playlists).
+# StatefulSet + PersistentVolumeClaim so data survives pod restarts. For
+# production prefer a managed database (RDS / Cloud SQL) or an operator
+# (CloudNativePG, Zalando) for backups, failover, and PITR.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: elfaria
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: elfaria
+            - name: POSTGRES_DB
+              value: elfaria
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: POSTGRES_PASSWORD
+            # Keep PGDATA in a subdir so the mounted volume root stays clean.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: '100m'
+              memory: '256Mi'
+            limits:
+              cpu: '500m'
+              memory: '512Mi'
+          readinessProbe:
+            exec:
+              command: ['pg_isready', '-U', 'elfaria', '-d', 'elfaria']
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ['ReadWriteOnce']
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: elfaria
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

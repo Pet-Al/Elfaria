@@ -1,0 +1,80 @@
+# The Discord gateway client. One process here (Discord sharding is only needed
+# near ~2,500 guilds). The bot reaches each Lavalink pod by its stable DNS name
+# and balances player sessions across the live nodes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elfaria-bot
+  namespace: elfaria
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): two gateway processes for the same shard would
+  # double-connect. A brief gap on deploy is the right trade for a single-shard bot.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: elfaria-bot
+  template:
+    metadata:
+      labels:
+        app: elfaria-bot
+    spec:
+      containers:
+        - name: bot
+          # Build and push your image, then set it here (or via kustomize images:).
+          image: ghcr.io/pet-al/elfaria:latest
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: DISCORD_TOKEN
+            - name: DISCORD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: DISCORD_CLIENT_ID
+            - name: LAVALINK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: LAVALINK_PASSWORD
+            - name: SPOTIFY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: SPOTIFY_CLIENT_ID
+            - name: SPOTIFY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: SPOTIFY_CLIENT_SECRET
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: POSTGRES_PASSWORD
+            # $(POSTGRES_PASSWORD) is expanded by Kubernetes from the entry above,
+            # so the secret never has to be duplicated into a connection string.
+            - name: DATABASE_URL
+              value: 'postgres://elfaria:$(POSTGRES_PASSWORD)@postgres:5432/elfaria'
+            - name: REDIS_URL
+              value: 'redis://redis:6379'
+            # One node entry per Lavalink pod ordinal, sized to the HPA's
+            # maxReplicas. Per-node auth is omitted → all inherit LAVALINK_PASSWORD.
+            # Pods that aren't up yet show as disconnected and are simply not used
+            # until the HPA scales them in (lavalink-client retries automatically).
+            - name: LAVALINK_NODES
+              value: >-
+                [{"id":"lavalink-0","host":"lavalink-0.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-1","host":"lavalink-1.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-2","host":"lavalink-2.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-3","host":"lavalink-3.lavalink-hl.elfaria.svc.cluster.local","port":2333}]
+          resources:
+            requests:
+              cpu: '100m'
+              memory: '192Mi'
+            limits:
+              cpu: '500m'
+              memory: '384Mi'
