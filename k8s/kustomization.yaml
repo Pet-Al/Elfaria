@@ -4,20 +4,13 @@ namespace: elfaria
 
 resources:
   - namespace.yaml
+  - lavalink-configmap.yaml
   - lavalink-service.yaml
   - lavalink-statefulset.yaml
   - lavalink-hpa.yaml
   - redis.yaml
   - postgres.yaml
   - bot-deployment.yaml
-
-# Generate the Lavalink ConfigMap straight from the canonical application.yml so
-# the k8s deploy and docker-compose deploy never drift. The generated name gets a
-# content hash, so editing application.yml rolls the StatefulSet automatically.
-configMapGenerator:
-  - name: lavalink-config
-    files:
-      - application.yml=../lavalink/application.yml
 
 # Point this at your built image (or override with `kustomize edit set image`).
 images:

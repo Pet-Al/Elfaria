@@ -4,10 +4,10 @@ import {
   ButtonStyle,
   ContainerBuilder,
   EmbedBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
+  SectionBuilder,
   SeparatorBuilder,
   TextDisplayBuilder,
+  ThumbnailBuilder,
 } from 'discord.js';
 import type { Track } from 'lavalink-client';
 import { formatDuration } from './QueueManager.js';
@@ -17,9 +17,9 @@ import { formatDuration } from './QueueManager.js';
  *
  * Two renderings of the same track:
  *   - nowPlayingCard()  — the modern Components V2 layout (the default). An
- *     accent-bordered container: a text block, the artwork shown full-width via
- *     a media gallery (so wide thumbnails aren't square-cropped), an optional
- *     live progress bar, a divider, and the control buttons.
+ *     accent-bordered container: a text block with the artwork as a compact
+ *     thumbnail accessory beside it, an optional live progress bar, a divider,
+ *     and the control buttons.
  *   - nowPlayingEmbed() — the classic embed kept for `/nowplaying legacy:true`.
  *
  * Keeping both here means the styling lives in one place and the two callers
@@ -79,16 +79,18 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (requester?.username) header.push(`-# Requested by ${requester.username}`);
 
   const container = new ContainerBuilder().setAccentColor(ACCENT);
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header.join('\n')));
 
-  // Full-width media (a gallery item) rather than a square thumbnail accessory,
-  // so wide cover art / video thumbnails display without being cropped.
+  // Compact square thumbnail beside the text (a Section accessory). A Section
+  // requires an accessory, so when there's no artwork the text goes straight
+  // into the container instead.
   if (track.info.artworkUrl) {
-    container.addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder().setURL(track.info.artworkUrl),
-      ),
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(header.join('\n')))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(track.info.artworkUrl)),
     );
+  } else {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header.join('\n')));
   }
 
   if (live) {

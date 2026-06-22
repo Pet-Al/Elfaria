@@ -1,0 +1,64 @@
+# Lavalink configuration, mounted into the StatefulSet at
+# /opt/Lavalink/application.yml.
+#
+# This is a copy of the repo's canonical lavalink/application.yml. kustomize
+# forbids a configMapGenerator from reading files outside the kustomization
+# directory (the "not in or below" security error), so we vendor it here as a
+# plain manifest instead. KEEP IN SYNC with lavalink/application.yml when you
+# change source plugins or YouTube clients.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lavalink-config
+  namespace: elfaria
+data:
+  application.yml: |
+    server:
+      port: 2333
+      address: 0.0.0.0
+
+    lavalink:
+      plugins:
+        - dependency: 'dev.lavalink.youtube:youtube-plugin:1.18.1'
+          repository: 'https://maven.lavalink.dev/releases'
+        - dependency: 'com.github.topi314.lavasrc:lavasrc-plugin:4.8.3'
+          repository: 'https://maven.lavalink.dev/releases'
+      server:
+        password: '${LAVALINK_SERVER_PASSWORD:youshallnotpass}'
+        sources:
+          youtube: false
+          bandcamp: true
+          soundcloud: true
+          twitch: true
+          vimeo: true
+          http: true
+          local: false
+        bufferDurationMs: 400
+        frameBufferDurationMs: 5000
+        youtubePlaylistLoadLimit: 6
+        opusEncodingQuality: 10
+        resamplingQuality: LOW
+        trackStuckThresholdMs: 10000
+
+    plugins:
+      youtube:
+        enabled: true
+        clients:
+          - MUSIC
+          - WEB
+          - WEBEMBEDDED
+          - ANDROID_VR
+      lavasrc:
+        sources:
+          spotify: true
+          applemusic: false
+          deezer: false
+        spotify:
+          clientId: '${SPOTIFY_CLIENT_ID:}'
+          clientSecret: '${SPOTIFY_CLIENT_SECRET:}'
+          countryCode: 'US'
+
+    logging:
+      level:
+        root: INFO
+        lavalink: INFO

@@ -56,27 +56,44 @@ removes the `maxReplicas`-must-match-`LAVALINK_NODES` coupling but needs extra
 bot code, RBAC, and a watch loop. Pre-declaring to a sane ceiling is simpler and
 covers real traffic.
 
+## Getting a cluster
+
+You need a real Kubernetes cluster — `kubectl` alone does nothing (the
+`dial tcp [::1]:8080 ... refused` error just means no cluster is configured).
+
+- **Windows / macOS (easiest):** you already have Docker Desktop — open
+  **Settings → Kubernetes → Enable Kubernetes**, apply, wait for it to go green.
+  That gives `kubectl` a working context. Then install metrics-server (the HPA
+  needs it; Docker Desktop doesn't ship it):
+  ```bash
+  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  # local clusters use self-signed kubelet certs, so allow insecure TLS:
+  kubectl -n kube-system patch deployment metrics-server --type=json \
+    -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+  ```
+- **Alternative:** `minikube` or `kind` (separate installs — `minikube not
+  recognized` just means it isn't installed).
+
 ## Deploy
 
-Prereqs: a cluster, `kubectl`, the **metrics-server** add-on (the HPA reads CPU
-from it), and your bot image built and pushed.
-
 ```bash
-# 1. Build & push the bot image, then point kustomize at it:
-docker build -t ghcr.io/<you>/elfaria:latest .
-docker push ghcr.io/<you>/elfaria:latest
-(cd k8s && kustomize edit set image ghcr.io/pet-al/elfaria=ghcr.io/<you>/elfaria:latest)
+# 1. Build the bot image. With Docker Desktop's K8s the image is already in the
+#    local daemon, so no push/registry needed — just point kustomize at it:
+docker build -t elfaria:local .
+(cd k8s && kustomize edit set image ghcr.io/pet-al/elfaria=elfaria:local)
+# (No kustomize CLI? Edit the `images:` newName/newTag in k8s/kustomization.yaml.)
 
 # 2. Create the Secret (NOT committed):
 cp k8s/secrets.example.yaml k8s/secrets.yaml   # then edit in real values
 kubectl apply -f k8s/secrets.yaml
 
-# 3. Deploy everything else:
+# 3. Deploy everything else (the Lavalink config is now a normal manifest, so
+#    plain apply -k works — no --load-restrictor flag needed):
 kubectl apply -k k8s/
 
-# 4. Register slash commands once (one-off Job/pod):
+# 4. Register slash commands once (one-off pod):
 kubectl -n elfaria run deploy-cmds --rm -it --restart=Never \
-  --image=ghcr.io/<you>/elfaria:latest \
+  --image=elfaria:local \
   --env="DISCORD_TOKEN=$TOKEN" --env="DISCORD_CLIENT_ID=$CID" \
   -- npm run deploy
 ```

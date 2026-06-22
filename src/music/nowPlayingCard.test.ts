@@ -17,8 +17,8 @@ const track = {
 
 // Component type numbers from the Discord API.
 const ACTION_ROW = 1;
+const SECTION = 9;
 const TEXT_DISPLAY = 10;
-const MEDIA_GALLERY = 12;
 const CONTAINER = 17;
 
 function flatten(json: ReturnType<typeof nowPlayingCard.prototype.toJSON>): string {
@@ -31,11 +31,11 @@ test('progressBar: marker reflects position', () => {
   assert.ok(progressBar(100_000, 100_000).endsWith('`1:40 / 1:40`'));
 });
 
-test('nowPlayingCard: is a container with a full-width media gallery', () => {
+test('nowPlayingCard: is a container with artwork as a section thumbnail', () => {
   const json = nowPlayingCard(track).toJSON();
   assert.equal(json.type, CONTAINER);
   const types = json.components.map((c) => c.type);
-  assert.ok(types.includes(MEDIA_GALLERY), 'artwork should be a media gallery, not a cropped thumbnail');
+  assert.ok(types.includes(SECTION), 'artwork should be a compact thumbnail accessory in a section');
   assert.ok(types.includes(ACTION_ROW), 'controls should be present by default');
 });
 
@@ -55,10 +55,10 @@ test('nowPlayingCard: withControls=false drops the action row', () => {
   assert.ok(!json.components.some((c) => c.type === ACTION_ROW));
 });
 
-test('nowPlayingCard: missing artwork omits the media gallery', () => {
+test('nowPlayingCard: missing artwork omits the section thumbnail', () => {
   const noArt = { ...track, info: { ...track.info, artworkUrl: null } } as unknown as Track;
   const json = nowPlayingCard(noArt).toJSON();
-  assert.ok(!json.components.some((c) => c.type === MEDIA_GALLERY));
+  assert.ok(!json.components.some((c) => c.type === SECTION));
   assert.ok(json.components.some((c) => c.type === TEXT_DISPLAY));
 });
 
