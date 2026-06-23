@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { getVoiceContext, replyError } from '../lib/interactions.js';
 import { logger } from '../lib/logger.js';
 import type { Command } from '../lib/types.js';
-import { formatDuration, getOrCreatePlayer } from '../music/QueueManager.js';
+import { formatDuration, getOrCreatePlayer, leaveIfIdle } from '../music/QueueManager.js';
 import { resolve } from '../music/sources.js';
 
 /**
@@ -94,14 +94,16 @@ export const play: Command = {
       const player = await getOrCreatePlayer(interaction, voice.voiceChannel.id);
       const result = await resolve(player, query, interaction.user);
 
-      // Lavalink couldn't load the source (e.g. a Spotify link with no LavaSrc).
+      // Lavalink couldn't load the source (e.g. a broken/unsupported link).
       if (result.loadType === 'error') {
         const reason = result.exception?.message ?? 'the source returned an error';
+        await leaveIfIdle(player); // don't sit idle in voice after a failed load
         await replyError(interaction, spotifyHint(query) ?? `Couldn't load that — ${reason}.`);
         return;
       }
 
       if (!result.tracks.length) {
+        await leaveIfIdle(player);
         await replyError(interaction, spotifyHint(query) ?? `No results found for **${query}**.`);
         return;
       }
@@ -121,6 +123,8 @@ export const play: Command = {
       if (!player.playing && !player.paused) await player.play();
     } catch (err) {
       logger.error({ err, guildId: interaction.guildId, query }, 'failed to start playback');
+      const player = (interaction.client as ElfariaClient).lavalink.getPlayer(interaction.guildId!);
+      if (player) await leaveIfIdle(player);
       await replyError(
         interaction,
         spotifyHint(query) ??

@@ -71,6 +71,47 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
 
 This is the continuous-development backlog. Each landed change should: tick the
 box here, flip the matching row in `ARCHITECTURE_COMPARISON.md`, and add/extend a
-test where it makes sense. The two highest-leverage items (metrics, tests) are
-already underway — the next natural pulls are the **Prometheus Adapter HPA wiring**
-(completes #1) and the **event pipeline** (#3, which in turn unblocks #6).
+test where it makes sense.
+
+---
+
+## Next up — working notes (living)
+
+State as of this writing: all work is on branch `claude/dazzling-hamilton-ca1gua`
+(no open PR yet). Docker now defaults to a bundled Postgres shared across the
+small and scale stacks; SQLite remains only for a non-Docker `npm start`.
+
+**Decided / shipped recently**
+- Components V2 now-playing card; single panel that updates **in place** per
+  track (reposts only when the channel has moved on); buried panels greyed
+  (accent kept); the **final** panel (queue finished) carries a one-shot Replay.
+- Loop = dropdown with track/queue × once/infinite. Volume = compact −25/+25
+  buttons (no full-width row). Live progress interval is configurable
+  (`NOWPLAYING_REFRESH_MS`, 0 = off).
+- History/replay/favorites; player-count HPA wiring (`k8s/monitoring/`).
+- Idle-leave when a play resolves nothing (broken/unsupported link).
+
+**Open items / assumptions (next)**
+1. **One-off SQLite → Postgres migration** script — existing `./data/*.db` rows
+   don't carry into the new Postgres store; offer a copy script.
+2. **`/forget-me` + a short privacy notice** — favorites & history are per-user
+   data; self-service deletion + disclosure is the responsible follow-up.
+3. **Event/analytics pipeline** (#3) → unblocks personalised autoplay (#6).
+4. **Large-scale presence/updates** — `client.guilds.cache.size` is per-shard;
+   aggregate across shards for an exact server count. At very high guild counts
+   set `NOWPLAYING_REFRESH_MS=0` (live edits don't fit the global API budget).
+5. **Observability finish** — Grafana dashboard, alert rules, OpenTelemetry traces.
+6. **Tests/CI** — command-handler + DB-repository tests, coverage gate; then CD.
+7. **Security** — image scanning, NetworkPolicy, secret rotation, privacy policy.
+
+**Won't do (by request / platform limits)**
+- Per-user "lit" favorite button — message components are shared across all
+  viewers, so a per-clicker highlight isn't possible; the ⭐ confirms via an
+  ephemeral reply instead.
+
+**Notes / answers captured**
+- Twitch is a **native** Lavalink source (not redirected to YouTube like
+  Spotify metadata) — Twitch stream URLs play directly.
+- Volume is **guild-specific** (persisted per guild, applied to that player).
+- The 3s edit throttle is about politeness/efficiency, not ban-avoidance —
+  discord.js already queues and respects 429s, so there's no ban risk.

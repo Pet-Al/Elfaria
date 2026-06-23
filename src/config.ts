@@ -128,6 +128,11 @@ export const config = {
     // Default search source when a query isn't a link. Lavalink search prefixes:
     // ytsearch | ytmsearch (YouTube Music) | scsearch (SoundCloud) | spsearch …
     searchPlatform: optional('DEFAULT_SEARCH_PLATFORM', 'ytsearch'),
+    // How often the now-playing card re-renders its progress bar (ms). Set to 0
+    // to disable live updates entirely — recommended at very large scale, where
+    // editing one message per guild every interval would dominate the bot's
+    // global API budget.
+    nowPlayingRefreshMs: intOption('NOWPLAYING_REFRESH_MS', 15_000),
   },
 
   // Audio is offloaded to Lavalink node(s) (doc §3 Option B / §9). The bot

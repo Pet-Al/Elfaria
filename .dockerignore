@@ -6,7 +6,16 @@ dist
 .env.*
 !.env.example
 data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 *.log
 npm-debug.log*
 .github
+.vscode
+.idea
+k8s
+docs
 README.md

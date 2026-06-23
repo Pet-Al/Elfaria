@@ -67,6 +67,18 @@ export function requesterOf(user: User): { id: string; username: string } {
   return { id: user.id, username: user.username };
 }
 
+/**
+ * Destroy (and disconnect) a player that has nothing to play — i.e. a request
+ * that connected to voice but resolved no tracks (a broken link, an unsupported
+ * playlist). Without this the bot would sit idle in the channel forever, since
+ * the leave-on-end timer only starts after something has actually played.
+ */
+export async function leaveIfIdle(player: Player): Promise<void> {
+  if (!player.playing && !player.paused && !player.queue.current && player.queue.tracks.length === 0) {
+    await player.destroy('nothing to play').catch(() => undefined);
+  }
+}
+
 /** Format a millisecond duration as h:mm:ss or m:ss. Zero/unknown → "0:00". */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '0:00';

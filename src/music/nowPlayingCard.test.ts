@@ -63,9 +63,8 @@ test('nowPlayingCard: missing artwork omits the section thumbnail', () => {
   assert.ok(json.components.some((c) => c.type === TEXT_DISPLAY));
 });
 
-test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume select', () => {
+test('nowPlayingCard: enriched panel shows badge/state/up-next + volume buttons + loop select', () => {
   const json = nowPlayingCard(track, {
-    withVolumeSelect: true,
     volume: 80,
     loopState: 'queue',
     upNext: ['Two', 'Three', 'Four', 'Five'],
@@ -76,12 +75,11 @@ test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume 
   assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
-  // Four action rows: transport, favorite, loop select, volume select.
+  // Three action rows: transport, [vol-, vol+, favorite], loop select.
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
-  assert.equal(rows.length, 4);
+  assert.equal(rows.length, 3);
   assert.equal(rows[2]?.components[0]?.type, 3, 'loop is a select menu');
-  assert.equal(rows[3]?.components[0]?.type, 3, 'volume is a select menu');
-  assert.ok(blob.includes('np:loop') && blob.includes('np:favorite'));
+  assert.ok(blob.includes('np:vol:up') && blob.includes('np:favorite') && blob.includes('np:loop'));
 });
 
 test('nowPlayingCard: accent colour applies', () => {
@@ -89,10 +87,15 @@ test('nowPlayingCard: accent colour applies', () => {
   assert.equal(json.accent_color, 0xff0000);
 });
 
-test('nowPlayingCard: retired panel greys controls but keeps Replay active', () => {
-  const json = nowPlayingCard(track, { disabled: true, withVolumeSelect: true }).toJSON();
-  const blob = JSON.stringify(json);
-  assert.ok(blob.includes('np:replay'), 'retired panel has a Replay button');
+test('nowPlayingCard: buried panel greys controls and has NO replay', () => {
+  const json = nowPlayingCard(track, { disabled: true }).toJSON();
+  assert.ok(!JSON.stringify(json).includes('np:replay'), 'a buried panel must not keep an active control');
+  assert.equal(json.components.filter((c) => c.type === ACTION_ROW).length, 1, 'only the greyed transport row');
+});
+
+test('nowPlayingCard: finished panel greys controls but keeps Replay active', () => {
+  const json = nowPlayingCard(track, { disabled: true, withReplay: true }).toJSON();
+  assert.ok(JSON.stringify(json).includes('np:replay'), 'finished panel has a Replay button');
   // Every button is disabled EXCEPT np:replay.
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
   for (const row of rows) {

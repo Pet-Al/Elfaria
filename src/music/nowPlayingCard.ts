@@ -20,16 +20,16 @@ import { formatDuration } from './QueueManager.js';
  * A single Components V2 container: a text block (title, artist, source badge,
  * volume/loop state, "up next") with the artwork as a compact thumbnail
  * accessory, an artwork-tinted accent, an optional live progress bar, a divider,
- * and the controls (transport buttons, loop + ⭐ favorite, volume dropdown). When
- * the panel is retired everything is greyed EXCEPT a Replay button, so an old
- * card can still bring the last track back.
+ * and the controls (transport buttons; a compact row of volume −/+ and ⭐
+ * favorite; a loop dropdown). A buried panel is fully greyed; the FINAL panel
+ * shown when the queue finishes adds a Replay button.
  */
 
 const ACCENT = 0x5865f2;
 const BAR_SIZE = 18;
 
-/** Volume presets offered by the np:volume dropdown (kept short). */
-export const VOLUME_PRESETS = [0, 50, 100, 150, 200];
+/** Volume step for the −/+ buttons (the "25 increments"). */
+export const VOLUME_STEP = 25;
 
 /** Loop options offered by the np:loop dropdown. */
 const LOOP_OPTIONS: { value: LoopState; label: string; emoji: string }[] = [
@@ -89,9 +89,21 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** The ⭐ favorite button row (per-user toggle, customId np:favorite). */
-export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+/** Compact second row: volume −/+ (25 each) and the ⭐ favorite toggle. */
+export function secondaryRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('np:vol:down')
+      .setEmoji('🔉')
+      .setLabel(`-${VOLUME_STEP}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+    new ButtonBuilder()
+      .setCustomId('np:vol:up')
+      .setEmoji('🔊')
+      .setLabel(`+${VOLUME_STEP}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId('np:favorite')
       .setEmoji('⭐')
@@ -140,42 +152,20 @@ export function replayRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** The volume dropdown (handled in events/buttons.ts as customId np:volume). */
-export function volumeSelectRow(
-  current?: number,
-  disabled = false,
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId('np:volume')
-    .setPlaceholder(current === undefined ? '🔊 Set volume' : `🔊 Volume — ${current}%`)
-    .setDisabled(disabled)
-    .addOptions(
-      VOLUME_PRESETS.map((v) => {
-        const option = new StringSelectMenuOptionBuilder()
-          .setLabel(v === 0 ? 'Mute (0%)' : `${v}%`)
-          .setValue(String(v))
-          .setEmoji(v === 0 ? '🔇' : v <= 75 ? '🔉' : v <= 100 ? '🔊' : '📢');
-        if (current !== undefined && v === current) option.setDefault(true);
-        return option;
-      }),
-    );
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-}
-
 export interface CardOptions {
-  /** Grey out the controls (retired panel) — replay stays active. */
+  /** Grey out the controls (a buried or finished panel). */
   disabled?: boolean;
+  /** When disabled, also attach an active Replay button (the final/finished panel). */
+  withReplay?: boolean;
   /** Current playback position (ms). When set, renders a live progress bar. */
   positionMs?: number;
   /** Attach the controls. The auto-panel does; a `/nowplaying` snapshot doesn't. */
   withControls?: boolean;
-  /** Attach the volume dropdown (only meaningful with controls). */
-  withVolumeSelect?: boolean;
   /** Container accent colour (e.g. extracted from the artwork). Defaults to brand. */
   accentColor?: number;
-  /** Current player volume — shows a 🔊 indicator and pre-selects the dropdown. */
+  /** Current player volume — shows a 🔊 indicator in the state line. */
   volume?: number;
-  /** Loop state (off|track-once|track|queue-once|queue) — drives the 🔁 indicator/button. */
+  /** Loop state (off|track-once|track|queue-once|queue) — drives the 🔁 indicator/dropdown. */
   loopState?: string;
   /** Titles of the upcoming tracks — renders an "Up next" block. */
   upNext?: string[];
@@ -187,9 +177,9 @@ export interface CardOptions {
 export function nowPlayingCard(track: Track, options: CardOptions = {}): ContainerBuilder {
   const {
     disabled = false,
+    withReplay = false,
     positionMs,
     withControls = true,
-    withVolumeSelect = false,
     accentColor = ACCENT,
     volume,
     loopState,
@@ -259,13 +249,12 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (withControls) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
-    if (disabled) {
-      // Retired panel: the only live control is Replay — bring the track back.
-      container.addActionRowComponents(replayRow(false));
-    } else {
-      container.addActionRowComponents(favoriteRow(false));
+    if (!disabled) {
+      container.addActionRowComponents(secondaryRow(false));
       container.addActionRowComponents(loopSelectRow(loopState, false));
-      if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, false));
+    } else if (withReplay) {
+      // The final panel (queue finished): the only live control is Replay.
+      container.addActionRowComponents(replayRow(false));
     }
   }
 

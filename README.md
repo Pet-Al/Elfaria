@@ -28,12 +28,13 @@ not the whole bot.
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
   with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
-- **Rich now-playing card** (Components V2): artwork-tinted accent, source
-  badge, volume/loop indicators, an "up next" preview, and a **live-updating
-  progress bar**. `/nowplaying legacy:true` shows the classic embed.
-- **Now-playing controls**: ⏯️ ⏭️ ⏹️ 🔀 📜 buttons, a **⭐ favorite** button, and
-  a **volume dropdown** on every now-playing message (same voice/DJ guards as the
-  commands).
+- **Rich now-playing card** (Components V2): artwork-tinted accent (kept even
+  when the panel retires), source badge, volume/loop indicators, an "up next"
+  preview, and a **live-updating progress bar**. The card updates **in place** as
+  songs change (unless the channel has moved on), so it doesn't spam.
+- **Now-playing controls**: ⏯️ ⏭️ ⏹️ 🔀 📜 buttons, a compact 🔉/🔊 volume row, a
+  **⭐ favorite** button, and a **loop dropdown** (track/queue × once/infinite),
+  with the same voice/DJ guards as the commands.
 - **History & replay**: `/history` lists recently played tracks; `/replay` (and
   a one-click Replay button when the queue finishes) replays the last one.
 - **Favorites**: ⭐ a track to save it, then `/favorites list|play` to revisit.
@@ -64,15 +65,23 @@ not the whole bot.
 | `/stop`                              | Stop, clear the queue, leave the channel.        |
 | `/pause`, `/resume`                  | Pause / resume playback.                         |
 | `/queue [page]`                      | Show the queue.                                  |
-| `/nowplaying`                        | Current track + progress bar.                    |
+| `/nowplaying`                        | Live now-playing card (progress, source, loop, up-next). |
 | `/volume [level]`                    | Show or set volume (0–100); persisted per guild. |
-| `/loop <mode>`                       | off / track / queue.                             |
+| `/loop <mode>`                       | off / track ×1 / track ∞ / queue ×1 / queue ∞.   |
 | `/shuffle`                           | Shuffle upcoming tracks.                         |
 | `/remove <position>`                 | Remove a track by its queue position.            |
 | `/autoplay`                          | Toggle related-track autoplay when the queue ends. |
 | `/filter <type>`                     | Apply an audio filter / EQ preset.               |
+| `/history [count]`                   | Recently played tracks in this server.           |
+| `/replay`                            | Play the most recently played track again.       |
+| `/favorites list\|play`              | List or play your ⭐ favorited tracks.            |
 | `/settings view\|dj-role`            | View settings / set the DJ role (Manage Server). |
 | `/playlist save\|load\|list\|delete` | Manage saved playlists.                          |
+
+Every now-playing card also has **buttons + a loop dropdown**: ⏯️ ⏭️ ⏹️ 🔀 📜,
+a compact 🔉 −25 / 🔊 +25 / ⭐ favorite row, and a loop dropdown. The card updates
+in place as the song changes; when the queue finishes it becomes a final card
+with a one-shot **↩️ Replay** button.
 
 Playback-control commands respect the **DJ role** if one is configured
 (`/settings dj-role`); otherwise everyone can use them. Members with **Manage

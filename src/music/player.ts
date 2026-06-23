@@ -1,50 +1,39 @@
 import { EventEmitter } from 'node:events';
-import { type Client, type Message, MessageFlags } from 'discord.js';
+import { type Client, type ContainerBuilder, type Message, MessageFlags } from 'discord.js';
 import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
+import { config } from '../config.js';
 import { recordPlay } from '../db/history.js';
-import { getAccentColor } from '../lib/artwork.js';
+import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
-import { type CardOptions, nowPlayingCard, replayRow } from './nowPlayingCard.js';
+import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
  *
  * Responsibilities:
- *   1. Forward Discord's raw voice packets to Lavalink so it can open the voice
- *      UDP connection (this is the bridge that makes offloaded audio work).
- *   2. Log node lifecycle (connect / error / disconnect) — observability.
- *   3. Announce track starts (a Components V2 card with controls, an
- *      artwork-tinted accent, and a live-updating progress bar), record play
- *      history, and surface track errors in the bound text channel.
+ *   1. Forward Discord's raw voice packets to Lavalink (the voice bridge).
+ *   2. Log node lifecycle — observability.
+ *   3. Drive the now-playing card: ONE panel per guild that updates in place for
+ *      each track when nothing else has been posted since (so the channel isn't
+ *      spammed); when the channel has moved on, the old panel is greyed and a
+ *      fresh one is posted. The progress bar ticks on a configurable interval.
+ *      When the queue finishes, the panel becomes the final card with a Replay
+ *      button. Track starts are also written to play history.
  */
 
-/** How often the now-playing progress bar is refreshed. */
-const PROGRESS_UPDATE_MS = 15_000;
-
-/** Minimum spacing between panel edits, so dropdown bursts can't flood a channel. */
+/** Live-progress refresh interval (0 disables live updates — see config). */
+const REFRESH_MS = config.music.nowPlayingRefreshMs;
+/** Minimum spacing between panel edits, so bursts can't flood a channel. */
 const MIN_EDIT_INTERVAL_MS = 3_000;
 
-async function send(
-  client: Client,
-  channelId: string | null,
-  payload: object,
-): Promise<Message | undefined> {
-  if (!channelId) return undefined;
-  const channel = client.channels.cache.get(channelId);
-  if (!channel?.isSendable()) return undefined;
-  return channel.send(payload).catch((err) => {
-    logger.warn({ err }, 'failed to send message');
-    return undefined;
-  });
-}
+const V2 = { flags: MessageFlags.IsComponentsV2 } as const;
 
-/** The card options that describe the current player state (queue, volume, loop). */
+/** Card options describing the current player state (queue, volume, loop). */
 function panelOptions(player: Player, positionMs?: number): CardOptions {
   return {
     positionMs,
-    withVolumeSelect: true,
     volume: player.volume,
     loopState: loopStateOf(player),
     upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
@@ -52,16 +41,64 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
   };
 }
 
+function clearTimer(player: Player): void {
+  const handle = player.get<NodeJS.Timeout | undefined>('npInterval');
+  if (handle) clearInterval(handle);
+  player.set('npInterval', undefined);
+}
+
+/** Grey out a panel that's being left behind (buried/stopped). Keeps its accent. */
+async function greyPanel(message: Message, track: Track): Promise<void> {
+  await message
+    .edit({
+      ...V2,
+      components: [
+        nowPlayingCard(track, {
+          disabled: true,
+          accentColor: cachedAccentColor(track.info.artworkUrl),
+        }),
+      ],
+    })
+    .catch(() => undefined);
+}
+
 /**
- * Re-render the live panel with the current player state (progress bar ticking,
- * loop/volume indicators). Exported so the loop/volume dropdowns can refresh
- * immediately.
- *
- * Throttled to at most one edit per MIN_EDIT_INTERVAL_MS per player, so a burst
- * of dropdown changes (or stress) can't flood the channel. This is on top of
- * discord.js's own REST queue, which already serialises requests and respects
- * Discord's 429 rate limits — so worst case edits are paced, never dropped onto
- * the gateway or crashing the bot.
+ * Show `components` as the guild's now-playing panel. Edits the existing panel
+ * IN PLACE when it's still the latest message in the channel (no one has posted
+ * since); otherwise greys the buried panel and posts a fresh one. Returns the
+ * message now serving as the panel.
+ */
+async function placePanel(
+  client: Client,
+  player: Player,
+  components: ContainerBuilder[],
+): Promise<Message | undefined> {
+  const channelId = player.textChannelId;
+  if (!channelId) return undefined;
+  const channel = client.channels.cache.get(channelId);
+  if (!channel?.isSendable()) return undefined;
+
+  const existing = player.get<Message | undefined>('npMessage');
+  const payload = { ...V2, components };
+
+  if (existing && channel.lastMessageId === existing.id) {
+    const edited = await existing.edit(payload).catch(() => undefined);
+    if (edited) return edited;
+  }
+  if (existing) {
+    const oldTrack = player.get<Track | undefined>('npTrack');
+    if (oldTrack) await greyPanel(existing, oldTrack);
+  }
+  return channel.send(payload).catch((err) => {
+    logger.warn({ err }, 'failed to send now-playing panel');
+    return undefined;
+  });
+}
+
+/**
+ * Re-render the live panel (progress bar ticking, loop/volume state). Exported so
+ * the loop/volume controls can refresh immediately. Throttled to one edit per
+ * MIN_EDIT_INTERVAL_MS per player — on top of discord.js's own rate-limit queue.
  */
 export async function refreshPanel(player: Player): Promise<void> {
   const message = player.get<Message | undefined>('npMessage');
@@ -74,45 +111,16 @@ export async function refreshPanel(player: Player): Promise<void> {
 
   const accentColor = await getAccentColor(track.info.artworkUrl);
   await message
-    .edit({
-      flags: MessageFlags.IsComponentsV2,
-      components: [nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor })],
-    })
+    .edit({ ...V2, components: [nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor })] })
     .catch(() => undefined);
 }
 
 function startProgressUpdates(player: Player): void {
+  if (REFRESH_MS <= 0) return; // live updates disabled (e.g. at very large scale)
   const handle = setInterval(() => {
     if (player.playing) void refreshPanel(player);
-  }, PROGRESS_UPDATE_MS);
+  }, REFRESH_MS);
   player.set('npInterval', handle);
-}
-
-/**
- * Retire a guild's previous now-playing panel: stop its progress timer and grey
- * out its controls. We keep only the current song's panel live, so stale
- * messages — even from days ago — stop responding (Discord components never
- * expire on their own). Because the card is Components V2 we rebuild the whole
- * container (from the stored track) with everything disabled.
- */
-async function disablePanel(player: Player): Promise<void> {
-  const handle = player.get<NodeJS.Timeout | undefined>('npInterval');
-  if (handle) {
-    clearInterval(handle);
-    player.set('npInterval', undefined);
-  }
-
-  const previous = player.get<Message | undefined>('npMessage');
-  const track = player.get<Track | undefined>('npTrack');
-  player.set('npMessage', undefined);
-  player.set('npTrack', undefined);
-  if (!previous || !track) return;
-  await previous
-    .edit({
-      flags: MessageFlags.IsComponentsV2,
-      components: [nowPlayingCard(track, { disabled: true, withVolumeSelect: true })],
-    })
-    .catch(() => undefined);
 }
 
 export function registerLavalinkEvents(client: ElfariaClient): void {
@@ -142,13 +150,10 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       );
       if (!track) return;
 
-      // Disarm a one-shot loop if we've returned to the marked track.
-      await settleLoopOnce(player, track.info.identifier);
+      await settleLoopOnce(player, track.info.identifier); // disarm one-shot loops
+      clearTimer(player);
+      player.set('npFinished', false);
 
-      // Retire the previous song's panel so only the current controls are live.
-      await disablePanel(player);
-
-      // Log it to play history (fire-and-forget) for /history and /replay.
       if (track.info.uri) {
         const requester = track.requester as { id?: string } | undefined;
         void recordPlay(
@@ -159,26 +164,34 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       }
 
       const accentColor = await getAccentColor(track.info.artworkUrl);
-      const message = await send(client, player.textChannelId, {
-        flags: MessageFlags.IsComponentsV2,
-        components: [
-          nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor }),
-        ],
-      });
+      const message = await placePanel(client, player, [
+        nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor }),
+      ]);
       if (message) {
         player.set('npMessage', message);
         player.set('npTrack', track);
         startProgressUpdates(player);
       }
     })
-    .on('queueEnd', (player) => {
+    .on('queueEnd', async (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
-      void disablePanel(player);
-      // Offer a one-click Replay of the last track (handled in events/buttons.ts).
-      void send(client, player.textChannelId, {
-        content: '✅ Queue finished. Leaving soon if nothing else is added.',
-        components: [replayRow()],
-      });
+      clearTimer(player);
+      player.set('npFinished', true);
+
+      const track = player.get<Track | undefined>('npTrack');
+      if (!track) {
+        void send(client, player.textChannelId, { content: '✅ Queue finished.' });
+        return;
+      }
+      // Transform the panel into the FINAL card — greyed controls + a Replay button.
+      const message = await placePanel(client, player, [
+        nowPlayingCard(track, {
+          disabled: true,
+          withReplay: true,
+          accentColor: cachedAccentColor(track.info.artworkUrl),
+        }),
+      ]);
+      if (message) player.set('npMessage', message);
     })
     .on('trackError', (player, track, payload) => {
       logger.error(
@@ -193,7 +206,23 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       logger.info({ guildId: player.guildId }, 'player disconnected from voice');
     })
     .on('playerDestroy', (player) => {
-      // Stop button / inactivity leave: disable whatever panel is still showing.
-      void disablePanel(player);
+      clearTimer(player);
+      // The finished panel keeps its live Replay button; otherwise (stop button,
+      // inactivity leave while playing) grey the panel so its controls die.
+      if (player.get('npFinished')) return;
+      const message = player.get<Message | undefined>('npMessage');
+      const track = player.get<Track | undefined>('npTrack');
+      player.set('npMessage', undefined);
+      player.set('npTrack', undefined);
+      if (message && track) void greyPanel(message, track);
     });
+}
+
+/** Send a plain message to a channel (used for transient notices). */
+async function send(client: Client, channelId: string | null, payload: object): Promise<void> {
+  if (!channelId) return;
+  const channel = client.channels.cache.get(channelId);
+  if (channel?.isSendable()) {
+    await channel.send(payload).catch((err) => logger.warn({ err }, 'failed to send message'));
+  }
 }
