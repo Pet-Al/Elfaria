@@ -1,0 +1,48 @@
+# Alerting rules for Elfaria (Prometheus Operator CRD). Apply alongside the
+# ServiceMonitor; set the `release` label to match your Prometheus.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: elfaria-alerts
+  namespace: elfaria
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: elfaria
+      rules:
+        - alert: ElfariaNoLavalinkNodes
+          expr: elfaria_lavalink_nodes_connected == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: No Lavalink nodes connected
+            description: Elfaria has 0 connected Lavalink nodes for 2m — playback is down.
+        - alert: ElfariaHighCommandErrorRate
+          expr: >-
+            sum(rate(elfaria_commands_total{status="error"}[5m]))
+            / clamp_min(sum(rate(elfaria_commands_total[5m])), 1) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: High slash-command error rate
+            description: More than 10% of commands have errored over the last 10 minutes.
+        - alert: ElfariaEventLoopLag
+          expr: elfaria_nodejs_eventloop_lag_p99_seconds > 0.2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Event-loop lag high
+            description: p99 event-loop lag > 200ms for 5m — the bot may be CPU-starved.
+        - alert: ElfariaSlowResolves
+          expr: >-
+            histogram_quantile(0.95, sum(rate(elfaria_source_resolve_seconds_bucket[5m])) by (le)) > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Slow track resolution
+            description: p95 search/resolve latency > 5s for 10m — a source may be degraded.

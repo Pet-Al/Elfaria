@@ -6,6 +6,7 @@ import { favorites } from './favorites.js';
 import { filter } from './filter.js';
 import { history } from './history.js';
 import { loop } from './loop.js';
+import { move } from './move.js';
 import { nowplaying } from './nowplaying.js';
 import { pause } from './pause.js';
 import { ping } from './ping.js';
@@ -42,6 +43,7 @@ export const commands: Command[] = [
   shuffle,
   seek,
   clear,
+  move,
   remove,
   settings,
   playlist,

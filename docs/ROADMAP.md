@@ -22,8 +22,9 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
   - ✅ Player-count autoscaling: the Lavalink HPA scales on `elfaria_active_players`
     (External metric) with CPU as a safety net; wiring (bot Service, ServiceMonitor,
     Prometheus Adapter rule) lives in `k8s/monitoring/`.
+  - ✅ Search cache hit/miss + resolve-latency metrics.
+  - ✅ Grafana dashboard + Prometheus alert rules (`k8s/monitoring/`).
   - ⬜ Distributed tracing (OpenTelemetry spans across bot → Lavalink).
-  - ⬜ Grafana dashboard + alert rules.
 
 - 🟡 **2. Automated tests** — *types and lint catch shape errors, not behaviour.*
   - ✅ Starter suite on the built-in `node:test` runner (no extra deps), wired
@@ -90,8 +91,12 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   buttons (no full-width row). Live progress interval is configurable
   (`NOWPLAYING_REFRESH_MS`, 0 = off).
 - History/replay/favorites; player-count HPA wiring (`k8s/monitoring/`).
-- New queue commands: `/seek`, `/skipto`, `/clear`.
-- Idle-leave when a play resolves nothing (broken/unsupported link).
+- New queue commands: `/seek`, `/skipto`, `/clear`, `/move`.
+- Idle-leave when a play resolves nothing (broken/unsupported link); pause
+  inactivity leave (don't sit paused in voice forever).
+- Resilience: a 30s timeout around source resolution so a hung source can't
+  block a command. Observability: cache/resolve metrics + Grafana + alerts.
+- Volume is a dropdown again (25 increments); loop is a dropdown too.
 - Presence: Streaming "music in N servers", count aggregated across shards and
   refreshed on guild join/leave (fixes per-shard undercount + staleness).
 - Sharding entrypoint hardened: `SHARD_COUNT` always resolves to `auto` or an

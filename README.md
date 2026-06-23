@@ -65,6 +65,7 @@ not the whole bot.
 | `/skipto <position>`                 | Jump straight to a queue position.               |
 | `/seek <to>`                         | Jump to a position in the track (e.g. `1:30`).   |
 | `/clear`                             | Clear upcoming tracks (keeps the current song).  |
+| `/move <from> <to>`                  | Reorder a track within the queue.                |
 | `/stop`                              | Stop, clear the queue, leave the channel.        |
 | `/pause`, `/resume`                  | Pause / resume playback.                         |
 | `/queue [page]`                      | Show the queue.                                  |
@@ -81,11 +82,11 @@ not the whole bot.
 | `/settings view\|dj-role`            | View settings / set the DJ role (Manage Server). |
 | `/playlist save\|load\|list\|delete` | Manage saved playlists.                          |
 
-Every now-playing card also has **buttons + a loop dropdown**: ⏯️ ⏭️ ⏹️ 🔀 📜,
-a compact 🔉 −25 / 🔊 +25 / ⭐ favorite row, and a loop dropdown. The card updates
-in place as the song changes; when the queue finishes it becomes a final card
-with a one-shot **↩️ Replay** button. `/play` replies **privately** and just
-updates the card's "up next" rather than posting a new message per track.
+Every now-playing card also has **controls**: ⏯️ ⏭️ ⏹️ 🔀 📜 buttons, a ⭐ favorite
+button, and **loop + volume dropdowns**. The card updates in place as the song
+changes; when the queue finishes it becomes a final card with a one-shot
+**↩️ Replay** button. `/play` replies **privately** and just updates the card's
+"up next" rather than posting a new message per track.
 
 Playback-control commands respect the **DJ role** if one is configured
 (`/settings dj-role`); otherwise everyone can use them. Members with **Manage

@@ -2,6 +2,7 @@ import type { Player, SearchResult } from 'lavalink-client';
 import type { User } from 'discord.js';
 import { searchCache } from '../cache/search.js';
 import { config } from '../config.js';
+import { searchCacheEvents, sourceResolveDuration } from '../lib/metrics.js';
 import { requesterOf } from './QueueManager.js';
 
 /**
@@ -14,10 +15,22 @@ import { requesterOf } from './QueueManager.js';
  * command logic never talks to the search API directly.
  *
  * Plain-text searches are cached (in-memory, or Redis when configured) so a
- * popular query skips Lavalink. Links and playlists are not cached (they're
- * cheap/unique to re-resolve). The cached result's tracks are re-stamped with
- * the current requester so "requested by" stays correct per play.
+ * popular query skips Lavalink. The resolve call is bounded by a timeout so a
+ * hung source can't block a command indefinitely, and it emits cache/latency
+ * metrics for observability.
  */
+
+/** How long to wait for Lavalink to resolve a query before giving up. */
+const RESOLVE_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+}
+
 export async function resolve(
   player: Player,
   query: string,
@@ -28,11 +41,19 @@ export async function resolve(
 
   const cached = await searchCache.get(cacheKey);
   if (cached?.tracks.length) {
+    searchCacheEvents.inc({ result: 'hit' });
     for (const track of cached.tracks) track.requester = requester;
     return cached;
   }
+  searchCacheEvents.inc({ result: 'miss' });
 
-  const result = (await player.search({ query }, requester)) as SearchResult;
+  const end = sourceResolveDuration.startTimer();
+  const result = (await withTimeout(
+    player.search({ query }, requester),
+    RESOLVE_TIMEOUT_MS,
+    'search',
+  )) as SearchResult;
+  end();
 
   // Cache only single-track and text-search results — not playlists (large) or
   // errors/empties.

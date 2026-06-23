@@ -50,6 +50,15 @@ kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/elfaria/elfa
 kubectl -n elfaria describe hpa lavalink
 ```
 
+## Dashboard & alerts
+
+- **`grafana-dashboard.json`** — import in Grafana (Dashboards → Import) and pick
+  your Prometheus data source. Panels: active players, connected nodes, command
+  rate/latency, search-cache hit ratio, resolve latency, event-loop lag, memory.
+- **`prometheus-alerts.yaml`** — a `PrometheusRule` (apply with `kubectl apply -f`)
+  covering no-Lavalink-nodes, high command error rate, event-loop lag, and slow
+  resolves. Set the `release` label to match your Prometheus.
+
 ## Until this is installed
 
 The HPA still works — it falls back to CPU. The external metric simply reads

@@ -38,6 +38,22 @@ export const commandDuration = new Histogram({
   registers: [registry],
 });
 
+/** Search cache lookups, by result (hit|miss). */
+export const searchCacheEvents = new Counter({
+  name: 'elfaria_search_cache_total',
+  help: 'Search cache lookups, by result.',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+/** Lavalink search/resolve latency. */
+export const sourceResolveDuration = new Histogram({
+  name: 'elfaria_source_resolve_seconds',
+  help: 'Lavalink search/resolve latency in seconds.',
+  buckets: [0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+  registers: [registry],
+});
+
 /** Live player count — set on scrape from the Lavalink manager. */
 const activePlayers = new Gauge({
   name: 'elfaria_active_players',

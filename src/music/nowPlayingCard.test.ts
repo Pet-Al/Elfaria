@@ -75,11 +75,12 @@ test('nowPlayingCard: enriched panel shows badge/state/up-next + volume buttons 
   assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
-  // Three action rows: transport, [vol-, vol+, favorite], loop select.
+  // Four action rows: transport, favorite, loop select, volume select.
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
-  assert.equal(rows.length, 3);
+  assert.equal(rows.length, 4);
   assert.equal(rows[2]?.components[0]?.type, 3, 'loop is a select menu');
-  assert.ok(blob.includes('np:vol:up') && blob.includes('np:favorite') && blob.includes('np:loop'));
+  assert.equal(rows[3]?.components[0]?.type, 3, 'volume is a select menu');
+  assert.ok(blob.includes('np:volume') && blob.includes('np:favorite') && blob.includes('np:loop'));
 });
 
 test('nowPlayingCard: accent colour applies', () => {

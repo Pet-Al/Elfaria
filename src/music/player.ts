@@ -123,6 +123,29 @@ function startProgressUpdates(player: Player): void {
   player.set('npInterval', handle);
 }
 
+/**
+ * Don't sit paused in a voice channel forever. When a player is paused we arm a
+ * timer; if it's still paused after leaveOnEndMs we leave. Resuming, a new track,
+ * or destruction clears it. (An *empty* channel is handled separately by
+ * events/voiceStateUpdate.ts.)
+ */
+function clearPauseTimer(player: Player): void {
+  const handle = player.get<NodeJS.Timeout | undefined>('pauseTimer');
+  if (handle) clearTimeout(handle);
+  player.set('pauseTimer', undefined);
+}
+
+function armPauseTimer(player: Player): void {
+  clearPauseTimer(player);
+  const handle = setTimeout(() => {
+    if (player.paused) {
+      logger.info({ guildId: player.guildId }, 'paused too long — leaving');
+      void player.destroy('Paused inactivity').catch(() => undefined);
+    }
+  }, config.music.leaveOnEndMs);
+  player.set('pauseTimer', handle);
+}
+
 export function registerLavalinkEvents(client: ElfariaClient): void {
   // 1. Bridge: every gateway voice packet must reach Lavalink. discord.js emits
   // "raw" for every payload but doesn't type it, so we go through EventEmitter.
@@ -152,6 +175,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
 
       await settleLoopOnce(player, track.info.identifier); // disarm one-shot loops
       clearTimer(player);
+      clearPauseTimer(player);
       player.set('npFinished', false);
 
       if (track.info.uri) {
@@ -202,11 +226,21 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         content: `⚠️ Error playing **${track?.info?.title ?? 'a track'}**, skipping.`,
       });
     })
+    .on('playerPaused', (player) => {
+      // Don't linger paused in voice forever — arm the inactivity leave.
+      armPauseTimer(player);
+      void refreshPanel(player, true);
+    })
+    .on('playerResumed', (player) => {
+      clearPauseTimer(player);
+      void refreshPanel(player, true);
+    })
     .on('playerDisconnect', (player) => {
       logger.info({ guildId: player.guildId }, 'player disconnected from voice');
     })
     .on('playerDestroy', (player) => {
       clearTimer(player);
+      clearPauseTimer(player);
       // The finished panel keeps its live Replay button; otherwise (stop button,
       // inactivity leave while playing) grey the panel so its controls die.
       if (player.get('npFinished')) return;

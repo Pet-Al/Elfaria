@@ -28,8 +28,8 @@ import { formatDuration } from './QueueManager.js';
 const ACCENT = 0x5865f2;
 const BAR_SIZE = 18;
 
-/** Volume step for the −/+ buttons (the "25 increments"). */
-export const VOLUME_STEP = 25;
+/** Volume presets offered by the np:volume dropdown (25 increments + boost). */
+export const VOLUME_PRESETS = [0, 25, 50, 75, 100, 125, 150, 200];
 
 /** Loop options offered by the np:loop dropdown. */
 const LOOP_OPTIONS: { value: LoopState; label: string; emoji: string }[] = [
@@ -89,21 +89,9 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** Compact second row: volume −/+ (25 each) and the ⭐ favorite toggle. */
-export function secondaryRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+/** The ⭐ favorite button row (per-user toggle, customId np:favorite). */
+export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('np:vol:down')
-      .setEmoji('🔉')
-      .setLabel(`-${VOLUME_STEP}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
-    new ButtonBuilder()
-      .setCustomId('np:vol:up')
-      .setEmoji('🔊')
-      .setLabel(`+${VOLUME_STEP}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId('np:favorite')
       .setEmoji('⭐')
@@ -134,6 +122,28 @@ export function loopSelectRow(
           .setValue(o.value)
           .setEmoji(o.emoji);
         if (o.value === state) option.setDefault(true);
+        return option;
+      }),
+    );
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
+/** The volume dropdown (handled in events/buttons.ts as customId np:volume). */
+export function volumeSelectRow(
+  current?: number,
+  disabled = false,
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('np:volume')
+    .setPlaceholder(current === undefined ? '🔊 Set volume' : `🔊 Volume — ${current}%`)
+    .setDisabled(disabled)
+    .addOptions(
+      VOLUME_PRESETS.map((v) => {
+        const option = new StringSelectMenuOptionBuilder()
+          .setLabel(v === 0 ? 'Mute (0%)' : `${v}%`)
+          .setValue(String(v))
+          .setEmoji(v === 0 ? '🔇' : v <= 75 ? '🔉' : v <= 100 ? '🔊' : '📢');
+        if (current !== undefined && v === current) option.setDefault(true);
         return option;
       }),
     );
@@ -250,8 +260,9 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
     if (!disabled) {
-      container.addActionRowComponents(secondaryRow(false));
+      container.addActionRowComponents(favoriteRow(false));
       container.addActionRowComponents(loopSelectRow(loopState, false));
+      container.addActionRowComponents(volumeSelectRow(volume, false));
     } else if (withReplay) {
       // The final panel (queue finished): the only live control is Replay.
       container.addActionRowComponents(replayRow(false));

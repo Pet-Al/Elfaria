@@ -34,7 +34,7 @@ async function updatePresence(client: Client<true>): Promise<void> {
     status: PresenceUpdateStatus.Online,
     activities: [
       {
-        name: `🎵 music in ${count} server${count === 1 ? '' : 's'}`,
+        name: `music in ${count} server${count === 1 ? '' : 's'}!`,
         type: ActivityType.Streaming,
         url: STREAM_URL,
       },
