@@ -67,7 +67,7 @@ test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume 
   const json = nowPlayingCard(track, {
     withVolumeSelect: true,
     volume: 80,
-    repeatMode: 'queue',
+    loopState: 'queue',
     upNext: ['Two', 'Three', 'Four', 'Five'],
     queueLength: 5,
   }).toJSON();

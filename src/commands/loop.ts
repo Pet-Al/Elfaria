@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
-import type { RepeatMode } from 'lavalink-client';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
+import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
 import { getPlayer } from '../music/QueueManager.js';
 
 export const loop: Command = {
@@ -11,12 +11,14 @@ export const loop: Command = {
     .addStringOption((opt) =>
       opt
         .setName('mode')
-        .setDescription('Repeat mode.')
+        .setDescription('How to repeat.')
         .setRequired(true)
         .addChoices(
           { name: 'Off', value: 'off' },
-          { name: 'Current track', value: 'track' },
-          { name: 'Whole queue', value: 'queue' },
+          { name: 'Track — once more', value: 'track-once' },
+          { name: 'Track — infinite', value: 'track' },
+          { name: 'Queue — one more lap', value: 'queue-once' },
+          { name: 'Queue — infinite', value: 'queue' },
         ),
     ),
   async execute(interaction) {
@@ -33,8 +35,8 @@ export const loop: Command = {
       return;
     }
 
-    const mode = interaction.options.getString('mode', true) as RepeatMode;
-    await player.setRepeatMode(mode);
-    await replyOk(interaction, `🔁 Repeat mode set to **${mode}**.`);
+    const mode = interaction.options.getString('mode', true) as LoopState;
+    await applyLoop(player, mode);
+    await replyOk(interaction, mode === 'off' ? '➡️ Loop off.' : `🔁 ${loopLabel(mode)}.`);
   },
 };

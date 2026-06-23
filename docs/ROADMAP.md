@@ -19,8 +19,9 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
     defaults, and gauges for `elfaria_active_players` / `elfaria_lavalink_nodes_connected`.
   - ✅ Wired into the command router (`instrumentCommand`) and started on ready.
   - ✅ K8s scrape annotations + metrics port on the bot Deployment.
-  - ⬜ Per-node player metrics from Lavalink (Prometheus plugin) → switch the HPA
-    from CPU to the `lavalink_playing_players` Pods metric via Prometheus Adapter.
+  - ✅ Player-count autoscaling: the Lavalink HPA scales on `elfaria_active_players`
+    (External metric) with CPU as a safety net; wiring (bot Service, ServiceMonitor,
+    Prometheus Adapter rule) lives in `k8s/monitoring/`.
   - ⬜ Distributed tracing (OpenTelemetry spans across bot → Lavalink).
   - ⬜ Grafana dashboard + alert rules.
 

@@ -11,6 +11,7 @@ import {
   ThumbnailBuilder,
 } from 'discord.js';
 import type { Track } from 'lavalink-client';
+import { type LoopState, loopLabel } from './loop.js';
 import { formatDuration } from './QueueManager.js';
 
 /**
@@ -44,15 +45,18 @@ const SOURCE_BADGES: Record<string, string> = {
   http: '🔗 Direct link',
 };
 
-function repeatBadge(mode?: string): string | null {
-  if (mode === 'track') return '🔂 Loop: track';
-  if (mode === 'queue') return '🔁 Loop: queue';
-  return null;
+function loopBadge(state?: string): string | null {
+  if (!state || state === 'off') return null;
+  const emoji = state.startsWith('track') ? '🔂' : '🔁';
+  return `${emoji} ${loopLabel(state as LoopState)}`;
 }
 
-/** A textual progress bar for the current position within a track. */
-export function progressBar(positionMs: number, durationMs: number): string {
-  if (!durationMs || durationMs <= 0) return '🔴 LIVE';
+/**
+ * A textual progress bar for the current position within a track. Live streams
+ * (and tracks with no known duration) show 🔴 LIVE instead of a bar.
+ */
+export function progressBar(positionMs: number, durationMs: number, isStream = false): string {
+  if (isStream || !durationMs || durationMs <= 0) return '🔴 LIVE';
   const ratio = Math.min(positionMs / durationMs, 1);
   const filled = Math.round(ratio * BAR_SIZE);
   const bar = '▬'.repeat(filled) + '🔘' + '▬'.repeat(Math.max(BAR_SIZE - filled, 0));
@@ -76,25 +80,22 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** Loop button — reflects the current repeat mode and cycles off→track→queue. */
-function loopButton(repeatMode: string | undefined, disabled: boolean): ButtonBuilder {
-  const mode = repeatMode ?? 'off';
-  const label = mode === 'track' ? 'Loop: track' : mode === 'queue' ? 'Loop: queue' : 'Loop';
+/** Loop button — reflects the current loop state and cycles through all modes. */
+function loopButton(loopState: string | undefined, disabled: boolean): ButtonBuilder {
+  const state = (loopState ?? 'off') as LoopState;
+  const active = state !== 'off';
   return new ButtonBuilder()
     .setCustomId('np:loop')
-    .setEmoji(mode === 'track' ? '🔂' : '🔁')
-    .setLabel(label)
-    .setStyle(mode === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success)
+    .setEmoji(state.startsWith('track') ? '🔂' : '🔁')
+    .setLabel(active ? loopLabel(state) : 'Loop')
+    .setStyle(active ? ButtonStyle.Success : ButtonStyle.Secondary)
     .setDisabled(disabled);
 }
 
 /** Secondary control row: loop toggle + ⭐ favorite (per-user). */
-export function secondaryRow(
-  disabled = false,
-  repeatMode?: string,
-): ActionRowBuilder<ButtonBuilder> {
+export function secondaryRow(disabled = false, loopState?: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    loopButton(repeatMode, disabled),
+    loopButton(loopState, disabled),
     new ButtonBuilder()
       .setCustomId('np:favorite')
       .setEmoji('⭐')
@@ -151,8 +152,8 @@ export interface CardOptions {
   accentColor?: number;
   /** Current player volume — shows a 🔊 indicator and pre-selects the dropdown. */
   volume?: number;
-  /** Player repeat mode (off|track|queue) — shows a 🔁 indicator and loop state. */
-  repeatMode?: string;
+  /** Loop state (off|track-once|track|queue-once|queue) — drives the 🔁 indicator/button. */
+  loopState?: string;
   /** Titles of the upcoming tracks — renders an "Up next" block. */
   upNext?: string[];
   /** Total upcoming count, for the "+N more" hint. */
@@ -168,16 +169,18 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     withVolumeSelect = false,
     accentColor = ACCENT,
     volume,
-    repeatMode,
+    loopState,
     upNext,
     queueLength,
   } = options;
   const requester = track.requester as { username?: string } | undefined;
-  const live = positionMs !== undefined;
+  const withProgress = positionMs !== undefined;
 
-  // Meta line: artist • duration (when no progress bar) • source badge.
+  // Meta line: artist • duration (or 🔴 Live for streams) • source badge.
   const meta = [`🎤 ${track.info.author || 'Unknown'}`];
-  if (!live) meta.push(`⏱️ ${track.info.isStream ? 'live' : formatDuration(track.info.duration)}`);
+  if (!withProgress) {
+    meta.push(track.info.isStream ? '🔴 Live' : `⏱️ ${formatDuration(track.info.duration)}`);
+  }
   const badge = SOURCE_BADGES[track.info.sourceName ?? ''] ?? track.info.sourceName;
   if (badge) meta.push(badge);
 
@@ -190,7 +193,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   // State line: volume + loop, only what's known.
   const state: string[] = [];
   if (volume !== undefined) state.push(`🔊 ${volume}%`);
-  const loop = repeatBadge(repeatMode);
+  const loop = loopBadge(loopState);
   if (loop) state.push(loop);
   if (state.length) header.push(state.join('    '));
 
@@ -210,9 +213,11 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header.join('\n')));
   }
 
-  if (live) {
+  if (withProgress) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(progressBar(positionMs, track.info.duration)),
+      new TextDisplayBuilder().setContent(
+        progressBar(positionMs, track.info.duration, track.info.isStream),
+      ),
     );
   }
 
@@ -231,7 +236,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (withControls) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
-    container.addActionRowComponents(secondaryRow(disabled, repeatMode));
+    container.addActionRowComponents(secondaryRow(disabled, loopState));
     if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, disabled));
     // On a retired panel, the only live control is Replay — bring the track back.
     if (disabled) container.addActionRowComponents(replayRow(false));

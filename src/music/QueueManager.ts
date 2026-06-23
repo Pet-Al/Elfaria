@@ -67,9 +67,9 @@ export function requesterOf(user: User): { id: string; username: string } {
   return { id: user.id, username: user.username };
 }
 
-/** Format a millisecond duration as h:mm:ss or m:ss. */
+/** Format a millisecond duration as h:mm:ss or m:ss. Zero/unknown → "0:00". */
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return 'live';
+  if (!Number.isFinite(ms) || ms <= 0) return '0:00';
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

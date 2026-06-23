@@ -7,10 +7,17 @@
 # ready and starts routing new players to it. Scale-in removes the highest
 # ordinal first.
 #
-# CPU is the simplest signal. For a music workload the better signal is "active
-# players per node" — expose it from Lavalink via Prometheus and use a
-# custom/external metric here (see the commented block). CPU correlates well
-# enough to start with (transcoding is CPU-bound).
+# Two signals, scaled on whichever demands MORE pods:
+#   - active players per node (the real workload metric, from the bot's
+#     elfaria_active_players gauge via Prometheus + the Prometheus Adapter), and
+#   - CPU utilisation (a safety net, and the only one that works before the
+#     monitoring stack is installed).
+#
+# The players metric needs the monitoring add-ons in k8s/monitoring/. Until those
+# are installed the HPA reports that one external metric as "unknown" and scales
+# on CPU alone (it will hold off on scale-DOWN while a metric is unknown — that's
+# the conservative, safe behaviour). Once the adapter serves the metric, players
+# drive scaling. To run CPU-only, delete the External metric block below.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -27,6 +34,16 @@ spec:
   # node entry for, so maxReplicas must not exceed that count.
   maxReplicas: 4
   metrics:
+    # Target ~50 simultaneous players per Lavalink pod. With an External metric,
+    # AverageValue divides the total by the StatefulSet's current replica count,
+    # so desiredReplicas ≈ ceil(total_players / 50).
+    - type: External
+      external:
+        metric:
+          name: elfaria_active_players
+        target:
+          type: AverageValue
+          averageValue: '50'
     - type: Resource
       resource:
         name: cpu
@@ -49,12 +66,3 @@ spec:
         - type: Pods
           value: 1
           periodSeconds: 120
-  # --- Active-players autoscaling (preferred, needs Prometheus Adapter) ---
-  # metrics:
-  #   - type: Pods
-  #     pods:
-  #       metric:
-  #         name: lavalink_playing_players
-  #       target:
-  #         type: AverageValue
-  #         averageValue: "80"

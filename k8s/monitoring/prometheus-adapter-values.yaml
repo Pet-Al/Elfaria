@@ -1,0 +1,28 @@
+# Helm values for prometheus-community/prometheus-adapter.
+#
+# Exposes the bot's elfaria_active_players gauge as an EXTERNAL metric named
+# "elfaria_active_players" in external.metrics.k8s.io, which is exactly what the
+# Lavalink HPA's External metric reads (k8s/lavalink-hpa.yaml).
+#
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install prometheus-adapter prometheus-community/prometheus-adapter \
+#     -n monitoring -f k8s/monitoring/prometheus-adapter-values.yaml
+#
+# Point this at your in-cluster Prometheus:
+prometheus:
+  url: http://kube-prometheus-stack-prometheus.monitoring.svc
+  port: 9090
+
+rules:
+  default: false
+  external:
+    - seriesQuery: 'elfaria_active_players'
+      resources:
+        # The metric is bot-wide, not tied to a single namespaced object, so we
+        # surface it as a cluster-scoped external metric.
+        namespaced: false
+      name:
+        as: 'elfaria_active_players'
+      # Sum across bot replicas/shards to get the total live player count.
+      metricsQuery: 'sum(elfaria_active_players)'

@@ -1,0 +1,21 @@
+# Tells the Prometheus Operator (kube-prometheus-stack) to scrape the bot's
+# /metrics endpoint. Apply after the bot Service exists (k8s/bot-service.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: elfaria-bot
+  namespace: elfaria
+  labels:
+    # Match your Prometheus's serviceMonitorSelector. kube-prometheus-stack uses
+    # `release: <helm-release>` by default — set it to your release name.
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ['elfaria']
+  selector:
+    matchLabels:
+      app: elfaria-bot
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

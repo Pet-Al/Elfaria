@@ -87,7 +87,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Capability | Status | Evidence / gap |
 |---|---|---|
 | Structured logging | ✅ | `pino` with structured fields throughout (`src/lib/logger.ts`); logs as a stream (12-factor). |
-| Metrics (RED/USE) | 🟡 | Prometheus `/metrics` shipped (`src/lib/metrics.ts`): command RED metrics, process defaults, and live player/connected-node gauges, scraped via K8s annotations. **Remaining:** wire the player-count metric into the HPA via the Prometheus Adapter (it currently scales on CPU). |
+| Metrics (RED/USE) | 🟡 | Prometheus `/metrics` shipped (`src/lib/metrics.ts`): command RED metrics, process defaults, and live player/connected-node gauges. The Lavalink HPA scales on the `elfaria_active_players` metric (wiring in `k8s/monitoring/`), CPU as fallback. **Remaining:** dashboards/alerts and distributed tracing. |
 | Distributed tracing | ❌ | No OpenTelemetry spans across bot→Lavalink. |
 | Dashboards & alerting | ❌ | No Grafana/alert rules; failures are discovered by reading logs. |
 

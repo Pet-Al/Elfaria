@@ -5,17 +5,16 @@ import {
   MessageFlags,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import type { RepeatMode, Track } from 'lavalink-client';
+import type { Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { toggleFavorite } from '../db/favorites.js';
 import { updateGuildSettings } from '../db/guilds.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
+import { cycleLoop, loopLabel } from '../music/loop.js';
 import { ensurePlayer } from '../music/QueueManager.js';
 import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
-
-const LOOP_ORDER: RepeatMode[] = ['off', 'track', 'queue'];
 
 /** Recursively flip a button's `disabled` flag in a message's component JSON. */
 interface MutableComponent {
@@ -150,11 +149,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await reply('🔀 Shuffled.');
       return;
     case 'loop': {
-      const next = LOOP_ORDER[(LOOP_ORDER.indexOf(player.repeatMode) + 1) % LOOP_ORDER.length]!;
-      await player.setRepeatMode(next);
-      await reply(
-        next === 'off' ? '➡️ Loop off.' : `🔁 Loop: **${next}** (off → track → queue).`,
-      );
+      const next = await cycleLoop(player); // off → track×1 → track∞ → queue×1 → queue∞
+      await reply(next === 'off' ? '➡️ Loop off.' : `🔁 **${loopLabel(next)}**.`);
       void refreshPanel(player); // reflect the new mode on the card immediately
       return;
     }

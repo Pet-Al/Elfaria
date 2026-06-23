@@ -16,12 +16,17 @@ import { resolve } from '../music/sources.js';
  * Lavalink event (music/player.ts); here we just acknowledge the enqueue.
  */
 
-/** If the query is a Spotify request, returns a hint explaining the opt-in. */
+/**
+ * If Spotify is OFF and the query is a Spotify request, returns the opt-in hint.
+ * When Spotify IS configured we return null so the caller surfaces the real
+ * error (e.g. an unsupported playlist) instead of wrongly claiming it's off.
+ */
 function spotifyHint(query: string): string | null {
+  if (config.spotify.enabled) return null;
   if (/open\.spotify\.com|spotify:|^\s*spsearch:/i.test(query)) {
     return (
-      "Spotify isn't enabled on this bot yet. The host needs to turn on the " +
-      'LavaSrc plugin (see the README → “Enabling Spotify”). YouTube and ' +
+      "Spotify isn't enabled on this bot yet. The host needs to add Spotify API " +
+      'credentials (see the README → “Enabling Spotify”). YouTube and ' +
       'SoundCloud links/searches work in the meantime.'
     );
   }

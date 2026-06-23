@@ -138,6 +138,13 @@ export const config = {
     nodes: parseLavalinkNodes(),
   },
 
+  // Spotify is enabled when the LavaSrc app credentials are present (the bot
+  // reads them too, just to know whether to show the "Spotify is off" hint vs.
+  // the real error when a Spotify request fails).
+  spotify: {
+    enabled: optional('SPOTIFY_CLIENT_ID', '') !== '',
+  },
+
   // Optional shared cache (doc §7/§9). Empty = in-memory (single process);
   // set REDIS_URL (e.g. redis://redis:6379) to share the search cache across
   // shards/processes.

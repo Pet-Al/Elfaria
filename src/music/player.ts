@@ -5,6 +5,7 @@ import type { ElfariaClient } from '../client.js';
 import { recordPlay } from '../db/history.js';
 import { getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
+import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard, replayRow } from './nowPlayingCard.js';
 
 /**
@@ -42,7 +43,7 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
     positionMs,
     withVolumeSelect: true,
     volume: player.volume,
-    repeatMode: player.repeatMode,
+    loopState: loopStateOf(player),
     upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
     queueLength: player.queue.tracks.length,
   };
@@ -125,6 +126,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         'playback started',
       );
       if (!track) return;
+
+      // Disarm a one-shot loop if we've returned to the marked track.
+      await settleLoopOnce(player, track.info.identifier);
 
       // Retire the previous song's panel so only the current controls are live.
       await disablePanel(player);

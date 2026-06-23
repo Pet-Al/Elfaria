@@ -1,0 +1,16 @@
+# ClusterIP Service exposing the bot's Prometheus /metrics endpoint, so a
+# scraper (Prometheus) and, through it, the player-count HPA can reach it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: elfaria-bot
+  namespace: elfaria
+  labels:
+    app: elfaria-bot
+spec:
+  selector:
+    app: elfaria-bot
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090

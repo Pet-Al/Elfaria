@@ -11,6 +11,7 @@ resources:
   - redis.yaml
   - postgres.yaml
   - bot-deployment.yaml
+  - bot-service.yaml
 
 # Point this at your built image (or override with `kustomize edit set image`).
 images:
