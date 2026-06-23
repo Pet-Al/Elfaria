@@ -11,7 +11,7 @@ import { toggleFavorite } from '../db/favorites.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
 import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
-import { ensurePlayer, skipCurrent } from '../music/QueueManager.js';
+import { ensurePlayer, formatDuration, skipCurrent } from '../music/QueueManager.js';
 import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
 
@@ -210,13 +210,16 @@ async function handleReplay(
   }
 }
 
+/** Now-playing dropdown custom ids handled here. */
+const NP_SELECTS = new Set(['np:loop', 'np:volume', 'np:seek']);
+
 /**
- * Now-playing dropdowns (customId np:loop and np:volume). DJ-gated and require
- * being in the bot's voice channel, mirroring /loop and /volume, and refresh the
- * card immediately.
+ * Now-playing dropdowns (customId np:loop, np:volume, np:seek). DJ-gated and
+ * require being in the bot's voice channel, mirroring /loop, /volume and /seek,
+ * and refresh the card immediately.
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (interaction.customId !== 'np:loop' && interaction.customId !== 'np:volume') return;
+  if (!NP_SELECTS.has(interaction.customId)) return;
   const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
   if (!interaction.inCachedGuild()) {
@@ -245,7 +248,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     const mode = (interaction.values[0] ?? 'off') as LoopState;
     await applyLoop(player, mode);
     await reply(mode === 'off' ? '➡️ Loop off.' : `🔁 ${loopLabel(mode)}.`);
-  } else {
+  } else if (interaction.customId === 'np:volume') {
     const level = Number.parseInt(interaction.values[0] ?? '', 10);
     if (Number.isNaN(level)) {
       await reply('❌ Invalid volume.');
@@ -256,6 +259,23 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     // (Use /volume to set the persistent default.)
     await player.setVolume(level);
     await reply(`🔊 Volume set to **${level}%** for now.`);
+  } else {
+    // np:seek — jump to the chosen offset (ms). Streams/unseekable tracks have no
+    // dropdown, but guard anyway and clamp to the track's duration.
+    const current = player.queue.current;
+    const position = Number.parseInt(interaction.values[0] ?? '', 10);
+    if (Number.isNaN(position) || !current || current.info.isStream || !current.info.duration) {
+      await reply("❌ This track can't be seeked.");
+      return;
+    }
+    const target = Math.max(0, Math.min(position, current.info.duration - 1));
+    try {
+      await player.seek(target);
+    } catch {
+      await reply("❌ This track can't be seeked.");
+      return;
+    }
+    await reply(`⏩ Jumped to **${formatDuration(target)}**.`);
   }
   void refreshPanel(player, true);
 }

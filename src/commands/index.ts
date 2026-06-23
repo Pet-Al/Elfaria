@@ -17,6 +17,7 @@ import { playlist } from './playlist.js';
 import { queue } from './queue.js';
 import { remove } from './remove.js';
 import { replay } from './replay.js';
+import { reroll } from './reroll.js';
 import { resume } from './resume.js';
 import { seek } from './seek.js';
 import { settings } from './settings.js';
@@ -52,6 +53,7 @@ export const commands: Command[] = [
   settings,
   playlist,
   autoplay,
+  reroll,
   filter,
   history,
   replay,

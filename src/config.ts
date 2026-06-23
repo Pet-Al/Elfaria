@@ -133,6 +133,10 @@ export const config = {
     // editing one message per guild every interval would dominate the bot's
     // global API budget.
     nowPlayingRefreshMs: intOption('NOWPLAYING_REFRESH_MS', 15_000),
+    // How many tracks autoplay keeps queued ahead (the "autoplay buffer"). When
+    // the queue runs dry and autoplay is on, it tops up to this many related
+    // tracks instead of just one, so there's always a visible "up next".
+    autoplayBuffer: intOption('AUTOPLAY_QUEUE_SIZE', 5),
   },
 
   // Audio is offloaded to Lavalink node(s) (doc §3 Option B / §9). The bot
@@ -167,6 +171,12 @@ export const config = {
 
   commands: {
     defaultCooldownMs: intOption('DEFAULT_COOLDOWN_MS', 3000),
+    // Auto-register slash commands GLOBALLY on boot, so a fresh build/restart
+    // never needs a separate `npm run deploy` step (the usual cause of "my
+    // commands aren't global / didn't update"). Idempotent. Set
+    // AUTO_DEPLOY_COMMANDS=false to manage registration manually (e.g. when you
+    // use the instant `npm run deploy:guild` dev path).
+    autoDeploy: optional('AUTO_DEPLOY_COMMANDS', 'true') !== 'false',
   },
 
   // Analytics event pipeline (doc roadmap #3). Events are always written to the

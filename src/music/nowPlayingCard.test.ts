@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Track } from 'lavalink-client';
-import { controlRow, nowPlayingCard, progressBar, replayRow } from './nowPlayingCard.js';
+import {
+  controlRow,
+  nowPlayingCard,
+  progressBar,
+  replayRow,
+  seekSelectRow,
+} from './nowPlayingCard.js';
 
 const track = {
   info: {
@@ -75,12 +81,40 @@ test('nowPlayingCard: enriched panel shows badge/state/up-next + volume buttons 
   assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
-  // Four action rows: transport, favorite, loop select, volume select.
+  // Five action rows: transport, favorite, loop select, volume select, seek select.
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
-  assert.equal(rows.length, 4);
+  assert.equal(rows.length, 5);
   assert.equal(rows[2]?.components[0]?.type, 3, 'loop is a select menu');
   assert.equal(rows[3]?.components[0]?.type, 3, 'volume is a select menu');
-  assert.ok(blob.includes('np:volume') && blob.includes('np:favorite') && blob.includes('np:loop'));
+  assert.equal(rows[4]?.components[0]?.type, 3, 'seek is a select menu');
+  assert.ok(
+    blob.includes('np:volume') &&
+      blob.includes('np:favorite') &&
+      blob.includes('np:loop') &&
+      blob.includes('np:seek'),
+  );
+});
+
+test('seekSelectRow: 10s steps for a short track, scales for a long one, none for streams', () => {
+  // ~3.5min track → 10s steps, capped under 25 options.
+  const short = seekSelectRow(track)?.toJSON();
+  assert.ok(short, 'a finite-duration track gets a seek control');
+  const opts = short.components[0]?.type === 3 ? short.components[0].options : [];
+  assert.ok(opts.length > 1 && opts.length <= 25, 'within Discord 25-option limit');
+  assert.equal(opts[0]?.value, '0', 'first jump is the start of the track');
+
+  // 2-hour set → coarser steps, still capped under 25 options.
+  const longTrack = {
+    ...track,
+    info: { ...track.info, duration: 2 * 60 * 60 * 1000 },
+  } as unknown as Track;
+  const long = seekSelectRow(longTrack)?.toJSON();
+  const longOpts = long?.components[0]?.type === 3 ? long.components[0].options : [];
+  assert.ok(longOpts.length > 1 && longOpts.length <= 25, 'long track still fits the limit');
+
+  // Live stream → no seek control at all.
+  const stream = { ...track, info: { ...track.info, isStream: true } } as unknown as Track;
+  assert.equal(seekSelectRow(stream), null, 'streams are not seekable');
 });
 
 test('nowPlayingCard: accent colour applies', () => {

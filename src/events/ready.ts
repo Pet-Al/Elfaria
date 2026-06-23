@@ -3,11 +3,29 @@ import { pruneOldData } from '../analytics/events.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { startApiServer } from '../lib/api.js';
+import { syncCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 
 const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Register slash commands GLOBALLY on boot so a fresh build/restart never needs
+ * a separate deploy step. Idempotent and fail-soft (a transient Discord hiccup
+ * logs and continues — it must never block the bot coming online). Under
+ * sharding only shard 0 runs it, so the global PUT happens once, not per shard.
+ */
+async function autoDeployCommands(client: Client<true>): Promise<void> {
+  if (!config.commands.autoDeploy) return;
+  if (client.shard && !client.shard.ids.includes(0)) return;
+  try {
+    const result = await syncCommands('global');
+    logger.info(result, 'auto-registered slash commands on boot (GLOBAL)');
+  } catch (err) {
+    logger.error({ err }, 'auto command registration failed — continuing (try `npm run deploy`)');
+  }
+}
 
 // A real twitch.tv/youtube URL is required for Discord to render the purple
 // "Streaming" status; the channel itself doesn't have to be live.
@@ -62,6 +80,7 @@ export const ready: BotEvent<Events.ClientReady> = {
   async execute(client) {
     const elfaria = client as ElfariaClient;
     await elfaria.lavalink.init({ id: client.user.id, username: client.user.username });
+    await autoDeployCommands(client);
     startMetricsServer(elfaria);
     startApiServer(elfaria);
 

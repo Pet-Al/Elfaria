@@ -150,6 +150,57 @@ export function volumeSelectRow(
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
+/** Most options a Discord select may hold is 25; keep a little headroom. */
+const SEEK_MAX_MARKS = 24;
+
+/**
+ * Dynamic seek dropdown (handled in events/buttons.ts as customId np:seek).
+ *
+ * Offers evenly-spaced jump points from the start of the track to its end. The
+ * step is the smallest multiple of 10 seconds that keeps the number of marks
+ * within Discord's 25-option select limit — so a 3-minute song gets 10s steps
+ * while a 2-hour set gets coarser ones, and either way it fits. Streams and
+ * tracks with no known duration get no seek control (you can't seek a live
+ * stream), so this returns null for them.
+ */
+export function seekSelectRow(
+  track: Track,
+  positionMs?: number,
+  disabled = false,
+): ActionRowBuilder<StringSelectMenuBuilder> | null {
+  const durationMs = track.info.duration;
+  if (track.info.isStream || !durationMs || durationMs <= 0) return null;
+
+  const durationSec = Math.floor(durationMs / 1000);
+  // Smallest 10s multiple s.t. floor(duration/step)+1 ≤ SEEK_MAX_MARKS marks.
+  const stepSec = Math.max(10, Math.ceil(durationSec / (SEEK_MAX_MARKS - 1) / 10) * 10);
+
+  const marks: number[] = [];
+  for (let s = 0; s <= durationSec && marks.length < SEEK_MAX_MARKS; s += stepSec) {
+    marks.push(s * 1000);
+  }
+  if (marks.length < 2) return null; // too short to offer meaningful jumps
+
+  const position = positionMs ?? 0;
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('np:seek')
+    .setPlaceholder(`⏩ Jump to… (${formatDuration(stepSec * 1000)} steps)`)
+    .setDisabled(disabled)
+    .addOptions(
+      marks.map((ms, i) => {
+        const next = marks[i + 1] ?? durationMs + 1;
+        const option = new StringSelectMenuOptionBuilder()
+          .setLabel(formatDuration(ms))
+          .setValue(String(ms))
+          .setEmoji(ms === 0 ? '⏮️' : '⏱️');
+        // Pre-select the mark covering the current position.
+        if (position >= ms && position < next) option.setDefault(true);
+        return option;
+      }),
+    );
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
 /** The ↩️ Replay button (customId np:replay). One-shot — disabled after a click. */
 export function replayRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -263,6 +314,10 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
       container.addActionRowComponents(favoriteRow(false));
       container.addActionRowComponents(loopSelectRow(loopState, false));
       container.addActionRowComponents(volumeSelectRow(volume, false));
+      // Seek is only meaningful for a track with a known, finite duration; it's
+      // omitted for live streams (and brings the card to its 5-row max otherwise).
+      const seek = seekSelectRow(track, positionMs, false);
+      if (seek) container.addActionRowComponents(seek);
     } else if (withReplay) {
       // The final panel (queue finished): the only live control is Replay.
       container.addActionRowComponents(replayRow(false));
