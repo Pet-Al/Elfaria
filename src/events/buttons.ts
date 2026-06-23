@@ -1,12 +1,40 @@
-import { type ButtonInteraction, MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
-import type { Track } from 'lavalink-client';
+import {
+  type APIMessageTopLevelComponent,
+  type ButtonInteraction,
+  ComponentType,
+  MessageFlags,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
+import type { RepeatMode, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { toggleFavorite } from '../db/favorites.js';
 import { updateGuildSettings } from '../db/guilds.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
 import { ensurePlayer } from '../music/QueueManager.js';
+import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
+
+const LOOP_ORDER: RepeatMode[] = ['off', 'track', 'queue'];
+
+/** Recursively flip a button's `disabled` flag in a message's component JSON. */
+interface MutableComponent {
+  type: number;
+  custom_id?: string;
+  disabled?: boolean;
+  components?: MutableComponent[];
+}
+function disableButtonById(components: MutableComponent[], customId: string): boolean {
+  let found = false;
+  for (const component of components) {
+    if (component.type === ComponentType.Button && component.custom_id === customId) {
+      component.disabled = true;
+      found = true;
+    }
+    if (component.components) found = disableButtonById(component.components, customId) || found;
+  }
+  return found;
+}
 
 /**
  * Now-playing button panel (doc roadmap). Buttons are attached to the
@@ -121,6 +149,15 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await player.queue.shuffle();
       await reply('🔀 Shuffled.');
       return;
+    case 'loop': {
+      const next = LOOP_ORDER[(LOOP_ORDER.indexOf(player.repeatMode) + 1) % LOOP_ORDER.length]!;
+      await player.setRepeatMode(next);
+      await reply(
+        next === 'off' ? '➡️ Loop off.' : `🔁 Loop: **${next}** (off → track → queue).`,
+      );
+      void refreshPanel(player); // reflect the new mode on the card immediately
+      return;
+    }
     default:
       await reply('❌ Unknown control.');
   }
@@ -166,6 +203,20 @@ async function handleReplay(
     player.queue.add(result.tracks[0]!);
     if (!player.playing && !player.paused) await player.play();
     await interaction.editReply(`↩️ Replaying **${last.title}**.`);
+
+    // One-time: grey out the Replay button on the message it was clicked from,
+    // reusing the message's existing component tree (works for V1 and V2 alike).
+    const components = interaction.message.components.map((c) => c.toJSON());
+    if (disableButtonById(components as unknown as MutableComponent[], 'np:replay')) {
+      await interaction.message
+        .edit({
+          flags: interaction.message.flags.has(MessageFlags.IsComponentsV2)
+            ? MessageFlags.IsComponentsV2
+            : undefined,
+          components: components as APIMessageTopLevelComponent[],
+        })
+        .catch(() => undefined);
+    }
   } catch {
     await interaction.editReply('❌ Something went wrong replaying that.');
   }

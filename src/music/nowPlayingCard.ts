@@ -3,7 +3,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
-  EmbedBuilder,
   SectionBuilder,
   SeparatorBuilder,
   StringSelectMenuBuilder,
@@ -15,18 +14,14 @@ import type { Track } from 'lavalink-client';
 import { formatDuration } from './QueueManager.js';
 
 /**
- * Now-playing card builders (doc roadmap, "rich UI").
+ * Now-playing card builder (doc roadmap, "rich UI").
  *
- * Two renderings of the same track:
- *   - nowPlayingCard()  — the modern Components V2 layout (the default). An
- *     accent-bordered container: a text block (title, artist, source badge,
- *     volume/loop state, "up next") with the artwork as a compact thumbnail
- *     accessory, an optional live progress bar, a divider, the control buttons,
- *     and an optional volume dropdown.
- *   - nowPlayingEmbed() — the classic embed kept for `/nowplaying legacy:true`.
- *
- * Keeping both here means the styling lives in one place and the callers
- * (player.ts auto-panel, /nowplaying) can't drift apart.
+ * A single Components V2 container: a text block (title, artist, source badge,
+ * volume/loop state, "up next") with the artwork as a compact thumbnail
+ * accessory, an artwork-tinted accent, an optional live progress bar, a divider,
+ * and the controls (transport buttons, loop + ⭐ favorite, volume dropdown). When
+ * the panel is retired everything is greyed EXCEPT a Replay button, so an old
+ * card can still bring the last track back.
  */
 
 const ACCENT = 0x5865f2;
@@ -81,9 +76,25 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** The ⭐ favorite button row (customId np:favorite). Toggles the track per-user. */
-export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+/** Loop button — reflects the current repeat mode and cycles off→track→queue. */
+function loopButton(repeatMode: string | undefined, disabled: boolean): ButtonBuilder {
+  const mode = repeatMode ?? 'off';
+  const label = mode === 'track' ? 'Loop: track' : mode === 'queue' ? 'Loop: queue' : 'Loop';
+  return new ButtonBuilder()
+    .setCustomId('np:loop')
+    .setEmoji(mode === 'track' ? '🔂' : '🔁')
+    .setLabel(label)
+    .setStyle(mode === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success)
+    .setDisabled(disabled);
+}
+
+/** Secondary control row: loop toggle + ⭐ favorite (per-user). */
+export function secondaryRow(
+  disabled = false,
+  repeatMode?: string,
+): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    loopButton(repeatMode, disabled),
     new ButtonBuilder()
       .setCustomId('np:favorite')
       .setEmoji('⭐')
@@ -93,14 +104,14 @@ export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** The ↩️ Replay button shown on the "queue finished" message (customId np:replay). */
+/** The ↩️ Replay button (customId np:replay). One-shot — disabled after a click. */
 export function replayRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('np:replay')
       .setEmoji('↩️')
       .setLabel('Replay last track')
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled),
   );
 }
@@ -128,21 +139,19 @@ export function volumeSelectRow(
 }
 
 export interface CardOptions {
-  /** Grey out the controls (retired panel). */
+  /** Grey out the controls (retired panel) — replay stays active. */
   disabled?: boolean;
   /** Current playback position (ms). When set, renders a live progress bar. */
   positionMs?: number;
-  /** Attach the control buttons. The auto-panel does; a `/nowplaying` snapshot doesn't. */
+  /** Attach the controls. The auto-panel does; a `/nowplaying` snapshot doesn't. */
   withControls?: boolean;
   /** Attach the volume dropdown (only meaningful with controls). */
   withVolumeSelect?: boolean;
-  /** Attach the ⭐ favorite button (only meaningful with controls). */
-  withFavorite?: boolean;
   /** Container accent colour (e.g. extracted from the artwork). Defaults to brand. */
   accentColor?: number;
   /** Current player volume — shows a 🔊 indicator and pre-selects the dropdown. */
   volume?: number;
-  /** Player repeat mode (off|track|queue) — shows a 🔁 indicator when not off. */
+  /** Player repeat mode (off|track|queue) — shows a 🔁 indicator and loop state. */
   repeatMode?: string;
   /** Titles of the upcoming tracks — renders an "Up next" block. */
   upNext?: string[];
@@ -157,7 +166,6 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     positionMs,
     withControls = true,
     withVolumeSelect = false,
-    withFavorite = false,
     accentColor = ACCENT,
     volume,
     repeatMode,
@@ -173,7 +181,11 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   const badge = SOURCE_BADGES[track.info.sourceName ?? ''] ?? track.info.sourceName;
   if (badge) meta.push(badge);
 
-  const header = ['### ▶️ Now playing', `**[${track.info.title}](${track.info.uri})**`, meta.join('  •  ')];
+  const header = [
+    '### ▶️ Now playing',
+    `**[${track.info.title}](${track.info.uri})**`,
+    meta.join('  •  '),
+  ];
 
   // State line: volume + loop, only what's known.
   const state: string[] = [];
@@ -205,7 +217,10 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   }
 
   if (upNext && upNext.length > 0) {
-    const list = upNext.slice(0, 3).map((title, i) => `\`${i + 1}.\` ${title}`).join('\n');
+    const list = upNext
+      .slice(0, 3)
+      .map((title, i) => `\`${i + 1}.\` ${title}`)
+      .join('\n');
     const total = queueLength ?? upNext.length;
     const more = total > 3 ? `\n-# +${total - 3} more in queue` : '';
     container.addTextDisplayComponents(
@@ -216,31 +231,11 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (withControls) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
-    if (withFavorite) container.addActionRowComponents(favoriteRow(disabled));
+    container.addActionRowComponents(secondaryRow(disabled, repeatMode));
     if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, disabled));
+    // On a retired panel, the only live control is Replay — bring the track back.
+    if (disabled) container.addActionRowComponents(replayRow(false));
   }
 
   return container;
-}
-
-/** The classic embed view, kept for `/nowplaying legacy:true`. */
-export function nowPlayingEmbed(track: Track, positionMs?: number): EmbedBuilder {
-  const requester = track.requester as { id?: string; username?: string } | undefined;
-  const description =
-    positionMs !== undefined
-      ? `**[${track.info.title}](${track.info.uri})**\n\n${progressBar(positionMs, track.info.duration)}`
-      : `**[${track.info.title}](${track.info.uri})**`;
-  return new EmbedBuilder()
-    .setColor(ACCENT)
-    .setTitle('🎶 Now playing')
-    .setDescription(description)
-    .addFields(
-      { name: 'Author', value: track.info.author || 'Unknown', inline: true },
-      {
-        name: 'Requested by',
-        value: requester?.id ? `<@${requester.id}>` : (requester?.username ?? 'Unknown'),
-        inline: true,
-      },
-    )
-    .setThumbnail(track.info.artworkUrl);
 }

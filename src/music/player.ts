@@ -41,7 +41,6 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
   return {
     positionMs,
     withVolumeSelect: true,
-    withFavorite: true,
     volume: player.volume,
     repeatMode: player.repeatMode,
     upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
@@ -49,11 +48,14 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
   };
 }
 
-/** Re-render the live panel with the current position (the progress bar ticking). */
-async function updatePanel(player: Player): Promise<void> {
+/**
+ * Re-render the live panel with the current player state (progress bar ticking,
+ * loop/volume indicators). Exported so the loop button can refresh immediately.
+ */
+export async function refreshPanel(player: Player): Promise<void> {
   const message = player.get<Message | undefined>('npMessage');
   const track = player.get<Track | undefined>('npTrack');
-  if (!message || !track || !player.playing) return;
+  if (!message || !track) return;
   const accentColor = await getAccentColor(track.info.artworkUrl);
   await message
     .edit({
@@ -64,7 +66,9 @@ async function updatePanel(player: Player): Promise<void> {
 }
 
 function startProgressUpdates(player: Player): void {
-  const handle = setInterval(() => void updatePanel(player), PROGRESS_UPDATE_MS);
+  const handle = setInterval(() => {
+    if (player.playing) void refreshPanel(player);
+  }, PROGRESS_UPDATE_MS);
   player.set('npInterval', handle);
 }
 
@@ -90,9 +94,7 @@ async function disablePanel(player: Player): Promise<void> {
   await previous
     .edit({
       flags: MessageFlags.IsComponentsV2,
-      components: [
-        nowPlayingCard(track, { disabled: true, withVolumeSelect: true, withFavorite: true }),
-      ],
+      components: [nowPlayingCard(track, { disabled: true, withVolumeSelect: true })],
     })
     .catch(() => undefined);
 }

@@ -76,22 +76,32 @@ test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume 
   assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
-  // Two action rows: buttons + the np:volume select (component type 3).
+  // Three action rows: transport, loop+favorite, the np:volume select (type 3).
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1]?.components[0]?.type, 3);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[2]?.components[0]?.type, 3);
+  assert.ok(blob.includes('np:loop') && blob.includes('np:favorite'));
 });
 
-test('nowPlayingCard: accent colour + favorite button row', () => {
-  const json = nowPlayingCard(track, {
-    withVolumeSelect: true,
-    withFavorite: true,
-    accentColor: 0xff0000,
-  }).toJSON();
+test('nowPlayingCard: accent colour applies', () => {
+  const json = nowPlayingCard(track, { accentColor: 0xff0000 }).toJSON();
   assert.equal(json.accent_color, 0xff0000);
-  // transport + favorite + volume = 3 action rows.
-  assert.equal(json.components.filter((c) => c.type === ACTION_ROW).length, 3);
-  assert.ok(JSON.stringify(json).includes('np:favorite'), 'favorite button present');
+});
+
+test('nowPlayingCard: retired panel greys controls but keeps Replay active', () => {
+  const json = nowPlayingCard(track, { disabled: true, withVolumeSelect: true }).toJSON();
+  const blob = JSON.stringify(json);
+  assert.ok(blob.includes('np:replay'), 'retired panel has a Replay button');
+  // Every button is disabled EXCEPT np:replay.
+  const rows = json.components.filter((c) => c.type === ACTION_ROW);
+  for (const row of rows) {
+    for (const c of row.components) {
+      if (c.type !== 2) continue; // buttons only
+      const isReplay = 'custom_id' in c && c.custom_id === 'np:replay';
+      const isDisabled = 'disabled' in c && c.disabled === true;
+      assert.equal(isDisabled, !isReplay, `${'custom_id' in c ? c.custom_id : '?'} disabled state`);
+    }
+  }
 });
 
 test('replayRow exposes the np:replay button', () => {

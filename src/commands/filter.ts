@@ -11,7 +11,11 @@ import { getPlayer } from '../music/QueueManager.js';
  */
 async function applyFilter(player: Player, type: string): Promise<void> {
   const fm = player.filterManager;
+  // resetFilters() clears the toggle effects (nightcore, rotation, …) but NOT
+  // the equalizer bands, so an EQ preset (electronic/pop/rock/bassboost) would
+  // otherwise linger after "off". Clear the EQ explicitly too.
   await fm.resetFilters();
+  await fm.clearEQ();
   switch (type) {
     case 'off':
       return;
