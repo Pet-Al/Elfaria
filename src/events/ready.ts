@@ -10,13 +10,26 @@ const STREAM_URL = 'https://www.twitch.tv/discord';
 const PRESENCE_REFRESH_MS = 10 * 60 * 1000;
 
 /**
- * Set the bot's presence to a Streaming status showing how many servers it's in.
- * Refreshed periodically so the count tracks joins/leaves. NOTE: under sharding
- * this counts the current shard's guilds; an exact total would aggregate across
- * shards via the sharding manager.
+ * Total guild count. `client.guilds.cache.size` is the number of servers the bot
+ * is in (NOT "mutual with you", NOT permission-filtered). Under sharding each
+ * process only holds its own shard's guilds, so we sum across shards for an
+ * accurate total; if a sibling shard isn't ready yet we fall back to local size.
  */
-function updatePresence(client: Client<true>): void {
-  const count = client.guilds.cache.size;
+async function guildCount(client: Client<true>): Promise<number> {
+  if (client.shard) {
+    try {
+      const counts = (await client.shard.fetchClientValues('guilds.cache.size')) as number[];
+      return counts.reduce((sum, n) => sum + (n ?? 0), 0);
+    } catch {
+      // a sibling shard may still be spawning — fall back to this shard's count
+    }
+  }
+  return client.guilds.cache.size;
+}
+
+/** Set the Streaming presence to "music in N servers". */
+async function updatePresence(client: Client<true>): Promise<void> {
+  const count = await guildCount(client);
   client.user.setPresence({
     status: PresenceUpdateStatus.Online,
     activities: [
@@ -47,7 +60,11 @@ export const ready: BotEvent<Events.ClientReady> = {
       'gateway ready — Elfaria is online',
     );
 
-    updatePresence(client);
-    setInterval(() => updatePresence(client), PRESENCE_REFRESH_MS);
+    void updatePresence(client);
+    // Keep the server count current: refresh on every join/leave, plus a slow
+    // periodic refresh as a backstop.
+    client.on(Events.GuildCreate, () => void updatePresence(client));
+    client.on(Events.GuildDelete, () => void updatePresence(client));
+    setInterval(() => void updatePresence(client), PRESENCE_REFRESH_MS);
   },
 };

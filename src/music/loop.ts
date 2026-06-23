@@ -9,8 +9,6 @@ import type { Player } from 'lavalink-client';
  */
 export type LoopState = 'off' | 'track-once' | 'track' | 'queue-once' | 'queue';
 
-const CYCLE: LoopState[] = ['off', 'track-once', 'track', 'queue-once', 'queue'];
-
 interface LoopMarker {
   identifier: string;
 }
@@ -50,13 +48,6 @@ export async function applyLoop(player: Player, state: LoopState): Promise<void>
       player.set('loopOnce', marker);
       return;
   }
-}
-
-/** Advance to the next state in the cycle (off→track×1→track∞→queue×1→queue∞). */
-export async function cycleLoop(player: Player): Promise<LoopState> {
-  const next = CYCLE[(CYCLE.indexOf(loopStateOf(player)) + 1) % CYCLE.length]!;
-  await applyLoop(player, next);
-  return next;
 }
 
 /**

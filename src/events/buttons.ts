@@ -135,7 +135,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     await updateGuildSettings(interaction.guildId, { defaultVolume: next });
     await player.setVolume(next);
     await reply(`🔊 Volume ${next}%.`);
-    void refreshPanel(player);
+    void refreshPanel(player, true);
     return;
   }
 
@@ -258,5 +258,5 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   const mode = (interaction.values[0] ?? 'off') as LoopState;
   await applyLoop(player, mode);
   await reply(mode === 'off' ? '➡️ Loop off.' : `🔁 ${loopLabel(mode)}.`);
-  void refreshPanel(player);
+  void refreshPanel(player, true);
 }

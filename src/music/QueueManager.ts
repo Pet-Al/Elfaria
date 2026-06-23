@@ -79,6 +79,19 @@ export async function leaveIfIdle(player: Player): Promise<void> {
   }
 }
 
+/**
+ * Parse a user timestamp into milliseconds: "90" (seconds), "1:30" (m:ss), or
+ * "1:02:03" (h:mm:ss). Returns null on anything malformed. Used by /seek.
+ */
+export function parseTimestamp(input: string): number | null {
+  const parts = input.trim().split(':');
+  if (parts.length < 1 || parts.length > 3) return null;
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  const seconds = nums.reduce((acc, n) => acc * 60 + n, 0);
+  return Math.round(seconds * 1000);
+}
+
 /** Format a millisecond duration as h:mm:ss or m:ss. Zero/unknown → "0:00". */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '0:00';

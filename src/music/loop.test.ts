@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Player } from 'lavalink-client';
-import { applyLoop, cycleLoop, loopStateOf, settleLoopOnce } from './loop.js';
+import { applyLoop, loopStateOf, settleLoopOnce } from './loop.js';
 
 /** A minimal fake player: repeat mode, a get/set store, and a current track. */
 function fakePlayer(currentId = 't1'): Player {
@@ -23,16 +23,18 @@ function fakePlayer(currentId = 't1'): Player {
   return player as unknown as Player;
 }
 
-test('cycleLoop walks off → track×1 → track∞ → queue×1 → queue∞ → off', async () => {
+test('applyLoop sets repeat mode + one-shot marker for each state', async () => {
   const p = fakePlayer();
-  assert.equal(loopStateOf(p), 'off');
-  assert.equal(await cycleLoop(p), 'track-once');
+  await applyLoop(p, 'track-once');
+  assert.equal(loopStateOf(p), 'track-once');
   assert.equal(p.repeatMode, 'track');
-  assert.equal(await cycleLoop(p), 'track');
-  assert.equal(await cycleLoop(p), 'queue-once');
+  await applyLoop(p, 'track');
+  assert.equal(loopStateOf(p), 'track');
+  await applyLoop(p, 'queue-once');
+  assert.equal(loopStateOf(p), 'queue-once');
   assert.equal(p.repeatMode, 'queue');
-  assert.equal(await cycleLoop(p), 'queue');
-  assert.equal(await cycleLoop(p), 'off');
+  await applyLoop(p, 'off');
+  assert.equal(loopStateOf(p), 'off');
   assert.equal(p.repeatMode, 'off');
 });
 

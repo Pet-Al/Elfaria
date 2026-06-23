@@ -100,13 +100,13 @@ async function placePanel(
  * the loop/volume controls can refresh immediately. Throttled to one edit per
  * MIN_EDIT_INTERVAL_MS per player — on top of discord.js's own rate-limit queue.
  */
-export async function refreshPanel(player: Player): Promise<void> {
+export async function refreshPanel(player: Player, force = false): Promise<void> {
   const message = player.get<Message | undefined>('npMessage');
   const track = player.get<Track | undefined>('npTrack');
   if (!message || !track) return;
 
   const last = player.get<number | undefined>('npLastEdit') ?? 0;
-  if (Date.now() - last < MIN_EDIT_INTERVAL_MS) return;
+  if (!force && Date.now() - last < MIN_EDIT_INTERVAL_MS) return;
   player.set('npLastEdit', Date.now());
 
   const accentColor = await getAccentColor(track.info.artworkUrl);

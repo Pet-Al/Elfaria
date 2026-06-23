@@ -62,6 +62,9 @@ not the whole bot.
 | `/ping`                              | Liveness + gateway latency.                      |
 | `/play <query>`                      | Play a song or playlist (search text or URL).    |
 | `/skip`                              | Skip the current track.                          |
+| `/skipto <position>`                 | Jump straight to a queue position.               |
+| `/seek <to>`                         | Jump to a position in the track (e.g. `1:30`).   |
+| `/clear`                             | Clear upcoming tracks (keeps the current song).  |
 | `/stop`                              | Stop, clear the queue, leave the channel.        |
 | `/pause`, `/resume`                  | Pause / resume playback.                         |
 | `/queue [page]`                      | Show the queue.                                  |
@@ -81,7 +84,8 @@ not the whole bot.
 Every now-playing card also has **buttons + a loop dropdown**: ⏯️ ⏭️ ⏹️ 🔀 📜,
 a compact 🔉 −25 / 🔊 +25 / ⭐ favorite row, and a loop dropdown. The card updates
 in place as the song changes; when the queue finishes it becomes a final card
-with a one-shot **↩️ Replay** button.
+with a one-shot **↩️ Replay** button. `/play` replies **privately** and just
+updates the card's "up next" rather than posting a new message per track.
 
 Playback-control commands respect the **DJ role** if one is configured
 (`/settings dj-role`); otherwise everyone can use them. Members with **Manage
@@ -130,6 +134,13 @@ docker compose run --rm bot npm run deploy # only when command definitions chang
   image). Lavalink config lives in the bind-mounted `lavalink/application.yml`,
   so it's picked up by `--force-recreate`, not by `build`.
 - You can scope a recreate to one service: `docker compose up -d --force-recreate lavalink`.
+- **Switching between the base and scale stacks** leaves the scale-only
+  containers (`lavalink2`, `redis`) behind as *orphans*, which can hold stale
+  network state. Clear them with:
+  ```bash
+  docker compose down --remove-orphans
+  docker compose up -d
+  ```
 
 ## Running without Docker
 

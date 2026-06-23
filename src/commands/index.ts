@@ -1,6 +1,7 @@
 import type { ElfariaClient } from '../client.js';
 import type { Command } from '../lib/types.js';
 import { autoplay } from './autoplay.js';
+import { clear } from './clear.js';
 import { favorites } from './favorites.js';
 import { filter } from './filter.js';
 import { history } from './history.js';
@@ -14,9 +15,11 @@ import { queue } from './queue.js';
 import { remove } from './remove.js';
 import { replay } from './replay.js';
 import { resume } from './resume.js';
+import { seek } from './seek.js';
 import { settings } from './settings.js';
 import { shuffle } from './shuffle.js';
 import { skip } from './skip.js';
+import { skipto } from './skipto.js';
 import { stop } from './stop.js';
 import { volume } from './volume.js';
 
@@ -28,6 +31,7 @@ export const commands: Command[] = [
   ping,
   play,
   skip,
+  skipto,
   stop,
   pause,
   resume,
@@ -36,6 +40,8 @@ export const commands: Command[] = [
   volume,
   loop,
   shuffle,
+  seek,
+  clear,
   remove,
   settings,
   playlist,

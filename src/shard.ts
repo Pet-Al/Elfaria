@@ -14,8 +14,23 @@ import { logger } from './lib/logger.js';
  *
  * Usage: `npm run start:sharded` (or set SHARD_COUNT to a fixed number).
  */
-const totalShards =
-  config.sharding.totalShards === 'auto' ? 'auto' : Number(config.sharding.totalShards);
+/**
+ * Resolve a value ShardingManager always accepts: 'auto' or an integer ≥ 1.
+ * Guards against the "Amount of shards must be at least 1" crash from a bad
+ * SHARD_COUNT (e.g. a stray value, or 'auto' that slipped through Number()).
+ * When SHARDING is off, run a single shard so launching this entrypoint by
+ * accident (e.g. via the scale compose) still boots instead of erroring.
+ */
+function resolveTotalShards(): number | 'auto' {
+  if (!config.sharding.enabled) return 1;
+  const raw = config.sharding.totalShards;
+  if (raw === 'auto') return 'auto';
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : 'auto';
+}
+
+const totalShards = resolveTotalShards();
+logger.info({ totalShards, shardingEnabled: config.sharding.enabled }, 'starting sharding manager');
 
 const manager = new ShardingManager('src/index.ts', {
   token: config.discord.token,

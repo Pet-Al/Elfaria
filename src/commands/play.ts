@@ -1,10 +1,11 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { getVoiceContext, replyError } from '../lib/interactions.js';
 import { logger } from '../lib/logger.js';
 import type { Command } from '../lib/types.js';
-import { formatDuration, getOrCreatePlayer, leaveIfIdle } from '../music/QueueManager.js';
+import { getOrCreatePlayer, leaveIfIdle } from '../music/QueueManager.js';
+import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
 
 /**
@@ -83,7 +84,10 @@ export const play: Command = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply();
+    // Ephemeral: the public surface is the now-playing card (which shows the
+    // queue), so /play just acknowledges privately instead of spamming the
+    // channel with an "added to queue" message for every track.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const voice = await getVoiceContext(interaction);
     if (!voice) return;
@@ -92,6 +96,7 @@ export const play: Command = {
 
     try {
       const player = await getOrCreatePlayer(interaction, voice.voiceChannel.id);
+      const wasActive = player.playing || player.paused;
       const result = await resolve(player, query, interaction.user);
 
       // Lavalink couldn't load the source (e.g. a broken/unsupported link).
@@ -111,16 +116,22 @@ export const play: Command = {
       if (result.loadType === 'playlist') {
         player.queue.add(result.tracks);
         await interaction.editReply(
-          `🎶 Added **${result.tracks.length}** tracks from **${result.playlist?.title ?? 'playlist'}** to the queue.`,
+          `🎶 Queued **${result.tracks.length}** tracks from **${result.playlist?.title ?? 'playlist'}**.`,
         );
       } else {
         const track = result.tracks[0]!;
-        const length = track.info.isStream ? 'live' : formatDuration(track.info.duration);
         player.queue.add(track);
-        await interaction.editReply(`🎶 Added **${track.info.title}** \`${length}\` to the queue.`);
+        await interaction.editReply(
+          wasActive
+            ? `🎶 Added **${track.info.title}** to the queue (#${player.queue.tracks.length}).`
+            : `▶️ Playing **${track.info.title}**.`,
+        );
       }
 
       if (!player.playing && !player.paused) await player.play();
+      // Already playing → the new track only changed the queue, so update the
+      // existing now-playing card's "up next" in place instead of posting anew.
+      else void refreshPanel(player, true);
     } catch (err) {
       logger.error({ err, guildId: interaction.guildId, query }, 'failed to start playback');
       const player = (interaction.client as ElfariaClient).lavalink.getPlayer(interaction.guildId!);

@@ -85,11 +85,18 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
 - Components V2 now-playing card; single panel that updates **in place** per
   track (reposts only when the channel has moved on); buried panels greyed
   (accent kept); the **final** panel (queue finished) carries a one-shot Replay.
+  `/play` is ephemeral and just refreshes the card's "up next".
 - Loop = dropdown with track/queue × once/infinite. Volume = compact −25/+25
   buttons (no full-width row). Live progress interval is configurable
   (`NOWPLAYING_REFRESH_MS`, 0 = off).
 - History/replay/favorites; player-count HPA wiring (`k8s/monitoring/`).
+- New queue commands: `/seek`, `/skipto`, `/clear`.
 - Idle-leave when a play resolves nothing (broken/unsupported link).
+- Presence: Streaming "music in N servers", count aggregated across shards and
+  refreshed on guild join/leave (fixes per-shard undercount + staleness).
+- Sharding entrypoint hardened: `SHARD_COUNT` always resolves to `auto` or an
+  int ≥ 1 (no "minimum 1" crash); `SHARDING=off` ⇒ a single shard.
+- Removed dead code (`cycleLoop`). SQLite kept intentionally for non-Docker dev.
 
 **Open items / assumptions (next)**
 1. **One-off SQLite → Postgres migration** script — existing `./data/*.db` rows
@@ -97,9 +104,8 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
 2. **`/forget-me` + a short privacy notice** — favorites & history are per-user
    data; self-service deletion + disclosure is the responsible follow-up.
 3. **Event/analytics pipeline** (#3) → unblocks personalised autoplay (#6).
-4. **Large-scale presence/updates** — `client.guilds.cache.size` is per-shard;
-   aggregate across shards for an exact server count. At very high guild counts
-   set `NOWPLAYING_REFRESH_MS=0` (live edits don't fit the global API budget).
+4. **Large-scale updates** — at very high guild counts set `NOWPLAYING_REFRESH_MS=0`
+   (live edits don't fit the global API budget). Cross-shard guild count is done.
 5. **Observability finish** — Grafana dashboard, alert rules, OpenTelemetry traces.
 6. **Tests/CI** — command-handler + DB-repository tests, coverage gate; then CD.
 7. **Security** — image scanning, NetworkPolicy, secret rotation, privacy policy.
