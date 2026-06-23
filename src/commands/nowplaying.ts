@@ -1,4 +1,5 @@
 import { MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { cachedAccentColor } from '../lib/artwork.js';
 import { replyError } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
 import { getPlayer } from '../music/QueueManager.js';
@@ -36,6 +37,7 @@ export const nowplaying: Command = {
         nowPlayingCard(track, {
           positionMs: player.position,
           withControls: false,
+          accentColor: cachedAccentColor(track.info.artworkUrl),
           volume: player.volume,
           repeatMode: player.repeatMode,
           upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),

@@ -57,6 +57,28 @@ const SQLITE_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist
     ON playlist_tracks (playlist_id, position);
+  CREATE TABLE IF NOT EXISTS play_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id      TEXT NOT NULL,
+    title         TEXT NOT NULL,
+    uri           TEXT NOT NULL,
+    author        TEXT,
+    requester_id  TEXT,
+    played_at     INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_play_history_guild
+    ON play_history (guild_id, played_at DESC, id DESC);
+  CREATE TABLE IF NOT EXISTS favorites (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    uri         TEXT NOT NULL,
+    author      TEXT,
+    created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+    UNIQUE (user_id, uri)
+  );
+  CREATE INDEX IF NOT EXISTS idx_favorites_user
+    ON favorites (user_id, created_at DESC);
 `;
 
 const POSTGRES_SCHEMA = `
@@ -86,6 +108,28 @@ const POSTGRES_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist
     ON playlist_tracks (playlist_id, position);
+  CREATE TABLE IF NOT EXISTS play_history (
+    id            BIGSERIAL PRIMARY KEY,
+    guild_id      TEXT NOT NULL,
+    title         TEXT NOT NULL,
+    uri           TEXT NOT NULL,
+    author        TEXT,
+    requester_id  TEXT,
+    played_at     BIGINT NOT NULL DEFAULT extract(epoch from now())
+  );
+  CREATE INDEX IF NOT EXISTS idx_play_history_guild
+    ON play_history (guild_id, played_at DESC, id DESC);
+  CREATE TABLE IF NOT EXISTS favorites (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    uri         TEXT NOT NULL,
+    author      TEXT,
+    created_at  BIGINT NOT NULL DEFAULT extract(epoch from now()),
+    UNIQUE (user_id, uri)
+  );
+  CREATE INDEX IF NOT EXISTS idx_favorites_user
+    ON favorites (user_id, created_at DESC);
 `;
 
 // ── SQLite (better-sqlite3) ───────────────────────────────────────────────────

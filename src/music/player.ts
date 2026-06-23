@@ -2,20 +2,25 @@ import { EventEmitter } from 'node:events';
 import { type Client, type Message, MessageFlags } from 'discord.js';
 import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
+import { recordPlay } from '../db/history.js';
+import { getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
-import { nowPlayingCard } from './nowPlayingCard.js';
+import { type CardOptions, nowPlayingCard, replayRow } from './nowPlayingCard.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
  *
- * Three responsibilities:
+ * Responsibilities:
  *   1. Forward Discord's raw voice packets to Lavalink so it can open the voice
  *      UDP connection (this is the bridge that makes offloaded audio work).
- *   2. Log node lifecycle (connect / error / disconnect) — our observability
- *      into the audio service (doc §10).
- *   3. Announce track starts (a Components V2 card with controls) and surface
- *      track errors in the bound text channel.
+ *   2. Log node lifecycle (connect / error / disconnect) — observability.
+ *   3. Announce track starts (a Components V2 card with controls, an
+ *      artwork-tinted accent, and a live-updating progress bar), record play
+ *      history, and surface track errors in the bound text channel.
  */
+
+/** How often the now-playing progress bar is refreshed. */
+const PROGRESS_UPDATE_MS = 15_000;
 
 async function send(
   client: Client,
@@ -31,15 +36,52 @@ async function send(
   });
 }
 
+/** The card options that describe the current player state (queue, volume, loop). */
+function panelOptions(player: Player, positionMs?: number): CardOptions {
+  return {
+    positionMs,
+    withVolumeSelect: true,
+    withFavorite: true,
+    volume: player.volume,
+    repeatMode: player.repeatMode,
+    upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
+    queueLength: player.queue.tracks.length,
+  };
+}
+
+/** Re-render the live panel with the current position (the progress bar ticking). */
+async function updatePanel(player: Player): Promise<void> {
+  const message = player.get<Message | undefined>('npMessage');
+  const track = player.get<Track | undefined>('npTrack');
+  if (!message || !track || !player.playing) return;
+  const accentColor = await getAccentColor(track.info.artworkUrl);
+  await message
+    .edit({
+      flags: MessageFlags.IsComponentsV2,
+      components: [nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor })],
+    })
+    .catch(() => undefined);
+}
+
+function startProgressUpdates(player: Player): void {
+  const handle = setInterval(() => void updatePanel(player), PROGRESS_UPDATE_MS);
+  player.set('npInterval', handle);
+}
+
 /**
- * Grey out the buttons on a guild's previous now-playing panel, if one is
- * tracked. We keep only the current song's controls live: when a new track
- * starts (or the queue ends / player is destroyed) the old panel is disabled
- * so stale messages — even from days ago — stop responding. Because the card is
- * Components V2 we rebuild the whole container (from the stored track) with the
- * buttons disabled rather than editing the buttons in isolation.
+ * Retire a guild's previous now-playing panel: stop its progress timer and grey
+ * out its controls. We keep only the current song's panel live, so stale
+ * messages — even from days ago — stop responding (Discord components never
+ * expire on their own). Because the card is Components V2 we rebuild the whole
+ * container (from the stored track) with everything disabled.
  */
 async function disablePanel(player: Player): Promise<void> {
+  const handle = player.get<NodeJS.Timeout | undefined>('npInterval');
+  if (handle) {
+    clearInterval(handle);
+    player.set('npInterval', undefined);
+  }
+
   const previous = player.get<Message | undefined>('npMessage');
   const track = player.get<Track | undefined>('npTrack');
   player.set('npMessage', undefined);
@@ -48,7 +90,9 @@ async function disablePanel(player: Player): Promise<void> {
   await previous
     .edit({
       flags: MessageFlags.IsComponentsV2,
-      components: [nowPlayingCard(track, { disabled: true, withVolumeSelect: true })],
+      components: [
+        nowPlayingCard(track, { disabled: true, withVolumeSelect: true, withFavorite: true }),
+      ],
     })
     .catch(() => undefined);
 }
@@ -79,31 +123,40 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         'playback started',
       );
       if (!track) return;
+
       // Retire the previous song's panel so only the current controls are live.
       await disablePanel(player);
-      const upNext = player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown');
+
+      // Log it to play history (fire-and-forget) for /history and /replay.
+      if (track.info.uri) {
+        const requester = track.requester as { id?: string } | undefined;
+        void recordPlay(
+          player.guildId,
+          { title: track.info.title, uri: track.info.uri, author: track.info.author },
+          requester?.id,
+        ).catch((err) => logger.warn({ err }, 'failed to record play history'));
+      }
+
+      const accentColor = await getAccentColor(track.info.artworkUrl);
       const message = await send(client, player.textChannelId, {
         flags: MessageFlags.IsComponentsV2,
         components: [
-          nowPlayingCard(track, {
-            withVolumeSelect: true,
-            volume: player.volume,
-            repeatMode: player.repeatMode,
-            upNext,
-            queueLength: player.queue.tracks.length,
-          }),
+          nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor }),
         ],
       });
       if (message) {
         player.set('npMessage', message);
         player.set('npTrack', track);
+        startProgressUpdates(player);
       }
     })
     .on('queueEnd', (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
       void disablePanel(player);
+      // Offer a one-click Replay of the last track (handled in events/buttons.ts).
       void send(client, player.textChannelId, {
         content: '✅ Queue finished. Leaving soon if nothing else is added.',
+        components: [replayRow()],
       });
     })
     .on('trackError', (player, track, payload) => {

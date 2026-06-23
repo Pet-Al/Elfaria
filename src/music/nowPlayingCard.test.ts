@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Track } from 'lavalink-client';
-import { controlRow, nowPlayingCard, progressBar } from './nowPlayingCard.js';
+import { controlRow, nowPlayingCard, progressBar, replayRow } from './nowPlayingCard.js';
 
 const track = {
   info: {
@@ -80,6 +80,22 @@ test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume 
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
   assert.equal(rows.length, 2);
   assert.equal(rows[1]?.components[0]?.type, 3);
+});
+
+test('nowPlayingCard: accent colour + favorite button row', () => {
+  const json = nowPlayingCard(track, {
+    withVolumeSelect: true,
+    withFavorite: true,
+    accentColor: 0xff0000,
+  }).toJSON();
+  assert.equal(json.accent_color, 0xff0000);
+  // transport + favorite + volume = 3 action rows.
+  assert.equal(json.components.filter((c) => c.type === ACTION_ROW).length, 3);
+  assert.ok(JSON.stringify(json).includes('np:favorite'), 'favorite button present');
+});
+
+test('replayRow exposes the np:replay button', () => {
+  assert.ok(JSON.stringify(replayRow().toJSON()).includes('np:replay'));
 });
 
 test('controlRow: disabled greys out every button', () => {

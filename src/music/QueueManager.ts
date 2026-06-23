@@ -22,27 +22,44 @@ export function getPlayer(interaction: ChatInputCommandInteraction): Player | un
   return lavalink(interaction).getPlayer(interaction.guildId!);
 }
 
-/** Get the guild's player, creating + connecting it to the voice channel if needed. */
-export async function getOrCreatePlayer(
-  interaction: ChatInputCommandInteraction,
+/**
+ * Get the guild's player, creating + connecting it to the voice channel if
+ * needed. Works from any context (slash command, button) — takes the raw pieces
+ * rather than an interaction so the now-playing buttons (e.g. Replay) can use it.
+ */
+export async function ensurePlayer(
+  client: ElfariaClient,
+  guildId: string,
   voiceChannelId: string,
+  textChannelId: string,
 ): Promise<Player> {
-  const manager = lavalink(interaction);
-  const guildId = interaction.guildId!;
-
+  const manager = client.lavalink;
   let player = manager.getPlayer(guildId);
   if (!player) {
     const settings = await getGuildSettings(guildId);
     player = manager.createPlayer({
       guildId,
       voiceChannelId,
-      textChannelId: interaction.channelId,
+      textChannelId,
       selfDeaf: true,
       volume: settings.defaultVolume,
     });
   }
   if (!player.connected) await player.connect();
   return player;
+}
+
+/** Convenience wrapper over ensurePlayer for slash commands. */
+export async function getOrCreatePlayer(
+  interaction: ChatInputCommandInteraction,
+  voiceChannelId: string,
+): Promise<Player> {
+  return ensurePlayer(
+    interaction.client as ElfariaClient,
+    interaction.guildId!,
+    voiceChannelId,
+    interaction.channelId,
+  );
 }
 
 /** The requester object we store on tracks for "requested by" display. */

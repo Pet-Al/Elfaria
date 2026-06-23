@@ -1,7 +1,9 @@
 import type { ElfariaClient } from '../client.js';
 import type { Command } from '../lib/types.js';
 import { autoplay } from './autoplay.js';
+import { favorites } from './favorites.js';
 import { filter } from './filter.js';
+import { history } from './history.js';
 import { loop } from './loop.js';
 import { nowplaying } from './nowplaying.js';
 import { pause } from './pause.js';
@@ -10,6 +12,7 @@ import { play } from './play.js';
 import { playlist } from './playlist.js';
 import { queue } from './queue.js';
 import { remove } from './remove.js';
+import { replay } from './replay.js';
 import { resume } from './resume.js';
 import { settings } from './settings.js';
 import { shuffle } from './shuffle.js';
@@ -38,6 +41,9 @@ export const commands: Command[] = [
   playlist,
   autoplay,
   filter,
+  history,
+  replay,
+  favorites,
 ];
 
 /** Populate the client's command Collection used by the router. */

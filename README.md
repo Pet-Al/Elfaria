@@ -28,8 +28,15 @@ not the whole bot.
 - **Playback**: play / skip / stop / pause / resume, queue view, now-playing
   with a progress bar, volume, repeat (off/track/queue), shuffle,
   remove-by-position.
-- **Now-playing button panel**: ⏯️ ⏭️ ⏹️ 🔀 📜 controls on every now-playing
-  message (same voice/DJ guards as the commands).
+- **Rich now-playing card** (Components V2): artwork-tinted accent, source
+  badge, volume/loop indicators, an "up next" preview, and a **live-updating
+  progress bar**. `/nowplaying legacy:true` shows the classic embed.
+- **Now-playing controls**: ⏯️ ⏭️ ⏹️ 🔀 📜 buttons, a **⭐ favorite** button, and
+  a **volume dropdown** on every now-playing message (same voice/DJ guards as the
+  commands).
+- **History & replay**: `/history` lists recently played tracks; `/replay` (and
+  a one-click Replay button when the queue finishes) replays the last one.
+- **Favorites**: ⭐ a track to save it, then `/favorites list|play` to revisit.
 - **Autoplay** (`/autoplay`): keep playing related tracks when the queue ends.
 - **Audio filters/EQ** (`/filter`): bass boost, nightcore, vaporwave, 8D,
   karaoke, lowpass, and EQ presets — done by Lavalink, no quality cost on the bot.

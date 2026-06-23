@@ -81,6 +81,30 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
+/** The ⭐ favorite button row (customId np:favorite). Toggles the track per-user. */
+export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('np:favorite')
+      .setEmoji('⭐')
+      .setLabel('Favorite')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+  );
+}
+
+/** The ↩️ Replay button shown on the "queue finished" message (customId np:replay). */
+export function replayRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('np:replay')
+      .setEmoji('↩️')
+      .setLabel('Replay last track')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(disabled),
+  );
+}
+
 /** The volume dropdown (handled in events/buttons.ts as customId np:volume). */
 export function volumeSelectRow(
   current?: number,
@@ -112,6 +136,10 @@ export interface CardOptions {
   withControls?: boolean;
   /** Attach the volume dropdown (only meaningful with controls). */
   withVolumeSelect?: boolean;
+  /** Attach the ⭐ favorite button (only meaningful with controls). */
+  withFavorite?: boolean;
+  /** Container accent colour (e.g. extracted from the artwork). Defaults to brand. */
+  accentColor?: number;
   /** Current player volume — shows a 🔊 indicator and pre-selects the dropdown. */
   volume?: number;
   /** Player repeat mode (off|track|queue) — shows a 🔁 indicator when not off. */
@@ -129,6 +157,8 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     positionMs,
     withControls = true,
     withVolumeSelect = false,
+    withFavorite = false,
+    accentColor = ACCENT,
     volume,
     repeatMode,
     upNext,
@@ -154,7 +184,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
 
   if (requester?.username) header.push(`-# Requested by ${requester.username}`);
 
-  const container = new ContainerBuilder().setAccentColor(ACCENT);
+  const container = new ContainerBuilder().setAccentColor(accentColor);
 
   // Compact square thumbnail beside the text (a Section accessory). A Section
   // requires an accessory, so when there's no artwork the text goes straight in.
@@ -186,6 +216,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (withControls) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
+    if (withFavorite) container.addActionRowComponents(favoriteRow(disabled));
     if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, disabled));
   }
 

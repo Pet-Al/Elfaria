@@ -1,8 +1,12 @@
 import { type ButtonInteraction, MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
 import type { Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
+import { toggleFavorite } from '../db/favorites.js';
 import { updateGuildSettings } from '../db/guilds.js';
+import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
+import { ensurePlayer } from '../music/QueueManager.js';
+import { resolve } from '../music/sources.js';
 
 /**
  * Now-playing button panel (doc roadmap). Buttons are attached to the
@@ -21,6 +25,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 
   const client = interaction.client as ElfariaClient;
+
+  // Replay can run after the queue ended (no player yet), so handle it before the
+  // "nothing is playing" guard — it re-creates and reconnects the player if needed.
+  if (action === 'replay') {
+    await handleReplay(interaction, client);
+    return;
+  }
+
   const player = client.lavalink.getPlayer(interaction.guildId);
   if (!player) {
     await reply('❌ Nothing is playing.');
@@ -39,6 +51,26 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       .filter(Boolean)
       .join('\n');
     await reply(body);
+    return;
+  }
+
+  // Favorite is personal — no voice/DJ gate, just needs the current track.
+  if (action === 'favorite') {
+    const current = player.queue.current;
+    if (!current?.info.uri) {
+      await reply('❌ Nothing favouritable is playing.');
+      return;
+    }
+    const state = await toggleFavorite(interaction.user.id, {
+      title: current.info.title,
+      uri: current.info.uri,
+      author: current.info.author,
+    });
+    await reply(
+      state === 'added'
+        ? `⭐ Saved **${current.info.title}** to your favorites — see \`/favorites\`.`
+        : `✖️ Removed **${current.info.title}** from your favorites.`,
+    );
     return;
   }
 
@@ -91,6 +123,51 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     default:
       await reply('❌ Unknown control.');
+  }
+}
+
+/**
+ * Replay the most recently played track (customId np:replay, shown on the
+ * queue-finished message). Re-resolves it by URL and starts it, recreating the
+ * player if the bot already left. Open to anyone in the voice channel.
+ */
+async function handleReplay(
+  interaction: ButtonInteraction<'cached'>,
+  client: ElfariaClient,
+): Promise<void> {
+  const voiceChannelId = interaction.member.voice.channelId;
+  if (!voiceChannelId) {
+    await interaction.reply({ content: '❌ Join a voice channel first.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const last = await getLastPlayed(interaction.guildId);
+  if (!last) {
+    await interaction.reply({
+      content: '❌ Nothing has played recently to replay.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const player = await ensurePlayer(
+      client,
+      interaction.guildId,
+      voiceChannelId,
+      interaction.channelId,
+    );
+    const result = await resolve(player, last.uri, interaction.user);
+    if (!result.tracks.length) {
+      await interaction.editReply(`❌ Couldn't reload **${last.title}**.`);
+      return;
+    }
+    player.queue.add(result.tracks[0]!);
+    if (!player.playing && !player.paused) await player.play();
+    await interaction.editReply(`↩️ Replaying **${last.title}**.`);
+  } catch {
+    await interaction.editReply('❌ Something went wrong replaying that.');
   }
 }
 

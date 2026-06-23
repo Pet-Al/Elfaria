@@ -54,6 +54,10 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
   - ⬜ Per-user/guild preference signal captured (needs the event pipeline first).
   - ⬜ Simple co-play collaborative filter, then evaluate a learned recommender.
 
+  - ⬜ `/forget-me` deletion command — **now relevant**: the ⭐ favorites feature
+    stores per-user data (`favorites` table), so a self-service wipe + a short
+    privacy note are the responsible next step.
+
 - ⬜ **7. Security hardening**
   - ⬜ Image scanning (Trivy/Snyk) in CI.
   - ⬜ K8s `NetworkPolicy` + pod security context tightening.
