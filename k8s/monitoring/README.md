@@ -1,4 +1,29 @@
-# Player-count autoscaling (monitoring add-ons)
+# Monitoring (what it is + autoscaling add-ons)
+
+## The concepts, briefly
+
+The bot exposes a **`/metrics`** endpoint (Prometheus text format) on port 9090 —
+a snapshot of numbers like "active players", "commands handled", "resolve
+latency" (see `src/lib/metrics.ts`). On its own that's just a page of numbers.
+The monitoring stack turns it into something useful:
+
+- **Prometheus** — a time-series database that **scrapes** `/metrics` every few
+  seconds and stores the history, so you can ask "how many players over the last
+  6 hours?" It also evaluates **alerting rules** (below).
+- **Grafana** — a dashboard tool that **queries Prometheus** and draws graphs.
+  Import `grafana-dashboard.json` to get charts for players, command rate/latency,
+  cache hit ratio, resolve latency, event-loop lag, and memory.
+- **Alerts** (`prometheus-alerts.yaml`) — rules Prometheus evaluates continuously;
+  when one is true for long enough (e.g. "0 Lavalink nodes for 2 minutes") it
+  **fires**, and Alertmanager routes it to Slack/email/PagerDuty. This is how you
+  find out something's wrong without watching dashboards.
+- **Prometheus Adapter** — republishes a Prometheus metric into Kubernetes'
+  metrics API so the **HPA** can autoscale on it (here: active players per node).
+
+You don't need any of this to run the bot — it's for *operating* it at scale.
+Everything below is optional and layered on top of a normal deploy.
+
+## Player-count autoscaling
 
 The Lavalink HPA (`../lavalink-hpa.yaml`) scales on **active players per node**,
 read from the bot's `elfaria_active_players` gauge. That path needs three pieces,

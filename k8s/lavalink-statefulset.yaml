@@ -25,10 +25,19 @@ spec:
       labels:
         app: lavalink
     spec:
-      terminationGracePeriodSeconds: 30
+      # Graceful scale-in: Lavalink can't migrate live sessions, so give existing
+      # streams a window to finish before the pod is killed. The preStop sleep
+      # makes K8s wait (the Service stops routing new players to a Terminating
+      # pod), and the grace period is generous. This REDUCES abrupt cut-offs; it
+      # is not true session migration (see k8s/README.md "Honest caveats").
+      terminationGracePeriodSeconds: 120
       containers:
         - name: lavalink
           image: ghcr.io/lavalink-devs/lavalink:4
+          lifecycle:
+            preStop:
+              exec:
+                command: ['sh', '-c', 'sleep 90']
           ports:
             - name: ws
               containerPort: 2333

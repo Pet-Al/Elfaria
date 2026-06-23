@@ -66,6 +66,8 @@ not the whole bot.
 | `/seek <to>`                         | Jump to a position in the track (e.g. `1:30`).   |
 | `/clear`                             | Clear upcoming tracks (keeps the current song).  |
 | `/move <from> <to>`                  | Reorder a track within the queue.                |
+| `/summon`                            | Move Elfaria to your voice channel.              |
+| `/lyrics`                            | Show lyrics for the current track.               |
 | `/stop`                              | Stop, clear the queue, leave the channel.        |
 | `/pause`, `/resume`                  | Pause / resume playback.                         |
 | `/queue [page]`                      | Show the queue.                                  |

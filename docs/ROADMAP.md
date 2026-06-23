@@ -24,7 +24,8 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
     Prometheus Adapter rule) lives in `k8s/monitoring/`.
   - ✅ Search cache hit/miss + resolve-latency metrics.
   - ✅ Grafana dashboard + Prometheus alert rules (`k8s/monitoring/`).
-  - ⬜ Distributed tracing (OpenTelemetry spans across bot → Lavalink).
+  - ✅ Distributed tracing (OpenTelemetry, opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+    — auto-instrumentation + manual command/resolve spans (`src/lib/tracing.ts`).
 
 - 🟡 **2. Automated tests** — *types and lint catch shape errors, not behaviour.*
   - ✅ Starter suite on the built-in `node:test` runner (no extra deps), wired
@@ -45,9 +46,13 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
   - ⬜ Progressive rollout (the K8s Deployment already uses a controlled strategy;
     add canary/blue-green for the bot once it's multi-replica).
 
-- ⬜ **5. Resilience depth**
-  - ⬜ Circuit breaker / timeout budget around source resolution.
-  - ⬜ Graceful Lavalink drain on scale-in (preStop that waits for players).
+- 🟡 **5. Resilience depth**
+  - ✅ Timeout (30s) + circuit breaker around source resolution
+    (`src/lib/circuitBreaker.ts`, wired in `music/sources.ts`).
+  - ✅ Graceful Lavalink drain on scale-in (preStop sleep + longer grace period;
+    reduces cut-offs, not full session migration).
+  - ✅ Self-healing: every event handler wrapped (errors logged, never crash the
+    loop); commands wrapped; global handlers; fail-soft cache/lyrics.
   - ⬜ Fault-injection / chaos test in a staging cluster.
 
 - 🟡 **6. Autoplay: heuristic → personalised/learned**
@@ -91,7 +96,11 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   buttons (no full-width row). Live progress interval is configurable
   (`NOWPLAYING_REFRESH_MS`, 0 = off).
 - History/replay/favorites; player-count HPA wiring (`k8s/monitoring/`).
-- New queue commands: `/seek`, `/skipto`, `/clear`, `/move`.
+- New commands: `/seek`, `/skipto`, `/clear`, `/move`, `/summon` (vc move),
+  `/lyrics` (lyrics.ovh, no plugin). Skip/next now runs autoplay when enabled.
+- DB-repo + command-registry tests; CI coverage gate (`npm run test:coverage`);
+  CD release workflow (`.github/workflows/release.yml`, builds image on tags).
+- Every leave (idle/pause/empty/stop) now greys the card AND keeps a Replay button.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

@@ -133,7 +133,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         return;
       }
       if (player.queue.tracks.length > 0) await player.skip();
-      else await player.stopPlaying();
+      else await player.stopPlaying(true, true); // run autoplay if it's enabled
       await reply('⏭️ Skipped.');
       return;
     case 'stop':

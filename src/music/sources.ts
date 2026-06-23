@@ -2,8 +2,13 @@ import type { Player, SearchResult } from 'lavalink-client';
 import type { User } from 'discord.js';
 import { searchCache } from '../cache/search.js';
 import { config } from '../config.js';
+import { CircuitBreaker } from '../lib/circuitBreaker.js';
 import { searchCacheEvents, sourceResolveDuration } from '../lib/metrics.js';
+import { withSpan } from '../lib/tracing.js';
 import { requesterOf } from './QueueManager.js';
+
+/** Fast-fail resolution while Lavalink is repeatedly failing, instead of hammering it. */
+const breaker = new CircuitBreaker(5, 30_000);
 
 /**
  * Sourcing layer (doc §4).
@@ -47,13 +52,27 @@ export async function resolve(
   }
   searchCacheEvents.inc({ result: 'miss' });
 
+  if (breaker.isOpen()) {
+    throw new Error('the audio source is temporarily unavailable, try again shortly');
+  }
+
   const end = sourceResolveDuration.startTimer();
-  const result = (await withTimeout(
-    player.search({ query }, requester),
-    RESOLVE_TIMEOUT_MS,
-    'search',
-  )) as SearchResult;
-  end();
+  let result: SearchResult;
+  try {
+    result = await withSpan('source.resolve', { 'elfaria.platform': config.music.searchPlatform }, () =>
+      withTimeout(
+        player.search({ query }, requester) as Promise<SearchResult>,
+        RESOLVE_TIMEOUT_MS,
+        'search',
+      ),
+    );
+    breaker.recordSuccess();
+  } catch (err) {
+    breaker.recordFailure();
+    throw err;
+  } finally {
+    end();
+  }
 
   // Cache only single-track and text-search results — not playlists (large) or
   // errors/empties.

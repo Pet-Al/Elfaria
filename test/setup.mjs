@@ -7,3 +7,5 @@ env.DISCORD_TOKEN ||= 'test-token';
 env.DISCORD_CLIENT_ID ||= 'test-client-id';
 env.METRICS_ENABLED ||= 'false';
 env.LOG_LEVEL ||= 'silent';
+// The DB integration test uses a throwaway SQLite file under .test-data/.
+env.DATABASE_PATH ||= './.test-data/elfaria-test.db';

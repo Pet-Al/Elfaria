@@ -20,9 +20,11 @@ export const skip: Command = {
     }
 
     const current = player.queue.current;
-    // skip() throws when there's no next track; stop instead so the queue ends.
+    // skip() throws when there's no next track; when the queue is empty, stop but
+    // run autoplay (executeAutoplay=true) so the Next action keeps the music going
+    // when autoplay is on — otherwise it just ends the queue.
     if (player.queue.tracks.length > 0) await player.skip();
-    else await player.stopPlaying();
+    else await player.stopPlaying(true, true);
 
     await replyOk(interaction, `⏭️ Skipped **${current.info.title}**.`);
   },

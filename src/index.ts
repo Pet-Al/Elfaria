@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { closeDatabase, initDatabase } from './db/index.js';
 import { registerEvents } from './events/index.js';
 import { logger } from './lib/logger.js';
+import { initTracing } from './lib/tracing.js';
 import { registerLavalinkEvents } from './music/player.js';
 
 /**
@@ -13,6 +14,10 @@ import { registerLavalinkEvents } from './music/player.js';
  * Installs process-level error handlers and graceful shutdown so the bot stays
  * available (doc §10) and a hard crash is left to the supervisor to restart.
  */
+
+// Start tracing first so instrumentation can hook in (no-op unless
+// OTEL_EXPORTER_OTLP_ENDPOINT is set).
+initTracing();
 
 const client = new ElfariaClient();
 

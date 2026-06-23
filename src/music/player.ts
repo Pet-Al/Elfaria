@@ -47,14 +47,20 @@ function clearTimer(player: Player): void {
   player.set('npInterval', undefined);
 }
 
-/** Grey out a panel that's being left behind (buried/stopped). Keeps its accent. */
-async function greyPanel(message: Message, track: Track): Promise<void> {
+/**
+ * Grey out a panel. `withReplay` adds the active Replay button — used for the
+ * FINAL panel (queue finished, or the bot leaving on idle/pause), so the card is
+ * greyed but the track can still be brought back. A buried mid-playback panel
+ * uses withReplay=false (no live control). Keeps the artwork accent either way.
+ */
+async function greyPanel(message: Message, track: Track, withReplay = false): Promise<void> {
   await message
     .edit({
       ...V2,
       components: [
         nowPlayingCard(track, {
           disabled: true,
+          withReplay,
           accentColor: cachedAccentColor(track.info.artworkUrl),
         }),
       ],
@@ -241,14 +247,16 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     .on('playerDestroy', (player) => {
       clearTimer(player);
       clearPauseTimer(player);
-      // The finished panel keeps its live Replay button; otherwise (stop button,
-      // inactivity leave while playing) grey the panel so its controls die.
+      // queueEnd already rendered the final card (grey + Replay). For every other
+      // way the player goes away — stop, pause-timeout, empty channel, idle leave —
+      // grey the live panel AND keep a Replay button, so the card always greys out
+      // and the last track can be brought back.
       if (player.get('npFinished')) return;
       const message = player.get<Message | undefined>('npMessage');
       const track = player.get<Track | undefined>('npTrack');
       player.set('npMessage', undefined);
       player.set('npTrack', undefined);
-      if (message && track) void greyPanel(message, track);
+      if (message && track) void greyPanel(message, track, true);
     });
 }
 

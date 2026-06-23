@@ -6,6 +6,7 @@ import { favorites } from './favorites.js';
 import { filter } from './filter.js';
 import { history } from './history.js';
 import { loop } from './loop.js';
+import { lyrics } from './lyrics.js';
 import { move } from './move.js';
 import { nowplaying } from './nowplaying.js';
 import { pause } from './pause.js';
@@ -22,6 +23,7 @@ import { shuffle } from './shuffle.js';
 import { skip } from './skip.js';
 import { skipto } from './skipto.js';
 import { stop } from './stop.js';
+import { summon } from './summon.js';
 import { volume } from './volume.js';
 
 /**
@@ -45,6 +47,7 @@ export const commands: Command[] = [
   clear,
   move,
   remove,
+  summon,
   settings,
   playlist,
   autoplay,
@@ -52,6 +55,7 @@ export const commands: Command[] = [
   history,
   replay,
   favorites,
+  lyrics,
 ];
 
 /** Populate the client's command Collection used by the router. */
