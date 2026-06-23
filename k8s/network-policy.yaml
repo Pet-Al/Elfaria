@@ -1,0 +1,69 @@
+# Default-deny + least-privilege network policy for the elfaria namespace
+# (doc roadmap #7). Requires a CNI that enforces NetworkPolicy (Calico, Cilium,
+# etc. — note Docker Desktop's default CNI does NOT enforce these).
+#
+# 1) Deny all ingress by default; 2) allow only what's needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: elfaria
+spec:
+  podSelector: {}
+  policyTypes: ['Ingress']
+  # No ingress rules = deny all inbound.
+---
+# Lavalink: only the bot (same namespace) may reach the audio port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bot-to-lavalink
+  namespace: elfaria
+spec:
+  podSelector:
+    matchLabels:
+      app: lavalink
+  policyTypes: ['Ingress']
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: elfaria-bot
+      ports:
+        - port: 2333
+---
+# Postgres + Redis: only the bot may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bot-to-data
+  namespace: elfaria
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: ['postgres', 'redis'] }
+  policyTypes: ['Ingress']
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: elfaria-bot
+---
+# Bot /metrics: allow scraping from the monitoring namespace only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metrics-scrape
+  namespace: elfaria
+spec:
+  podSelector:
+    matchLabels:
+      app: elfaria-bot
+  policyTypes: ['Ingress']
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 9090

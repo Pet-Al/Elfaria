@@ -1,8 +1,13 @@
 import { ActivityType, type Client, Events, PresenceUpdateStatus } from 'discord.js';
+import { pruneOldData } from '../analytics/events.js';
 import type { ElfariaClient } from '../client.js';
+import { config } from '../config.js';
+import { startApiServer } from '../lib/api.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
+
+const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
 
 // A real twitch.tv/youtube URL is required for Discord to render the purple
 // "Streaming" status; the channel itself doesn't have to be live.
@@ -58,6 +63,11 @@ export const ready: BotEvent<Events.ClientReady> = {
     const elfaria = client as ElfariaClient;
     await elfaria.lavalink.init({ id: client.user.id, username: client.user.username });
     startMetricsServer(elfaria);
+    startApiServer(elfaria);
+
+    // GDPR retention: prune old history/events on boot and daily thereafter.
+    void pruneOldData(config.retentionDays);
+    setInterval(() => void pruneOldData(config.retentionDays), RETENTION_SWEEP_MS);
 
     logger.info(
       { user: client.user.tag, guilds: client.guilds.cache.size },

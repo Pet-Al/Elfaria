@@ -1,5 +1,6 @@
 import type { Player, SearchResult } from 'lavalink-client';
 import type { User } from 'discord.js';
+import { recordEvent } from '../analytics/events.js';
 import { searchCache } from '../cache/search.js';
 import { config } from '../config.js';
 import { CircuitBreaker } from '../lib/circuitBreaker.js';
@@ -42,6 +43,7 @@ export async function resolve(
   requestedBy: User,
 ): Promise<SearchResult> {
   const requester = requesterOf(requestedBy);
+  recordEvent({ type: 'search', guildId: player.guildId, userId: requestedBy.id, query });
   const cacheKey = `search:${config.music.searchPlatform}:${query.toLowerCase().trim()}`;
 
   const cached = await searchCache.get(cacheKey);

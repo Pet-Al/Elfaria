@@ -4,6 +4,7 @@ import { autoplay } from './autoplay.js';
 import { clear } from './clear.js';
 import { favorites } from './favorites.js';
 import { filter } from './filter.js';
+import { forgetme } from './forgetme.js';
 import { history } from './history.js';
 import { loop } from './loop.js';
 import { lyrics } from './lyrics.js';
@@ -56,6 +57,7 @@ export const commands: Command[] = [
   replay,
   favorites,
   lyrics,
+  forgetme,
 ];
 
 /** Populate the client's command Collection used by the router. */

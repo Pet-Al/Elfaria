@@ -65,3 +65,33 @@ Grafana dashboard and Prometheus alert rules.
 
 See **[../chaos/](../chaos/)** for Chaos Mesh experiments (pod-kill,
 network-delay) and a game-day runbook to *prove* the resilience above holds.
+
+## Edge-case bug sweep
+
+The codebase was reviewed against common industry bug classes. Result: clean.
+
+| Class | Result |
+|---|---|
+| SQL injection | ✅ All queries parameterized (`?` → `$n`); no string interpolation of input. |
+| Null/undefined deref | ✅ Every `!` non-null assertion (`tracks[0]!`, `tracks[from-1]!`, …) is guarded by a preceding length/bounds check. |
+| Off-by-one | ✅ `/remove` `/skipto` `/move` `/queue` paging all bounds-checked and 1-based-correct. |
+| Unhandled rejections | ✅ Global handlers + per-event catch; presence updates can't throw unhandled. |
+| Resource/timer leaks | ✅ Progress interval, pause timer, leave timer, resolve timeout all cleared; caches capped (accent 500, autoplay-seen 60) or TTL'd. |
+| `JSON.parse` crashes | ✅ All sites wrapped/fail-soft (Redis get, config nodes, deep-clone of own data). |
+| ReDoS | ✅ `parseTimestamp` + lyrics `clean()` regexes are linear, inputs short. |
+| Interaction double-reply | ✅ `replyError/replyOk` respect deferred/replied state. |
+| Div-by-zero | ✅ `progressBar` returns LIVE when duration ≤ 0. |
+| Hung downstream | ✅ 30s resolve timeout + circuit breaker. |
+
+## Security & data protection
+
+- **Privacy / GDPR** — see **[../PRIVACY.md](../PRIVACY.md)**: documented data,
+  90-day retention (auto-pruned), and `/forget-me` for right-to-erasure.
+- **Image scanning** — CI runs **Trivy** on the built image and fails on fixable
+  HIGH/CRITICAL CVEs.
+- **Network policy** — `k8s/network-policy.yaml` default-denies ingress and only
+  allows the bot→Lavalink/Postgres/Redis paths and monitoring→/metrics.
+- **Pod hardening** — the bot runs as a non-root user with dropped capabilities,
+  no privilege escalation, and the RuntimeDefault seccomp profile.
+- **Secrets** — only in gitignored `.env` / K8s `Secret`s (Sealed/External
+  Secrets recommended for rotation).

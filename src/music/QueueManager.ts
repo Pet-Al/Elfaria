@@ -2,6 +2,7 @@ import type { ChatInputCommandInteraction, User } from 'discord.js';
 import type { LavalinkManager, Player } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { getGuildSettings } from '../db/guilds.js';
+import { autoPlayFunction } from './autoplay.js';
 
 /**
  * Queue/player helpers (doc §5).
@@ -65,6 +66,28 @@ export async function getOrCreatePlayer(
 /** The requester object we store on tracks for "requested by" display. */
 export function requesterOf(user: User): { id: string; username: string } {
   return { id: user.id, username: user.username };
+}
+
+/**
+ * Advance to the next track. If the queue has one, skip to it. If it's empty
+ * but autoplay is on, fetch a related track FIRST and then skip to it — so the
+ * Next/skip action keeps the music going instead of stopping (the previous
+ * behaviour relied on stopPlaying's autoplay flag, which left the player idle).
+ * Otherwise stop cleanly.
+ */
+export async function skipCurrent(player: Player): Promise<void> {
+  if (player.queue.tracks.length > 0) {
+    await player.skip();
+    return;
+  }
+  if (player.get<boolean>('autoplay')) {
+    await autoPlayFunction(player, player.queue.current ?? null);
+    if (player.queue.tracks.length > 0) {
+      await player.skip();
+      return;
+    }
+  }
+  await player.stopPlaying();
 }
 
 /**

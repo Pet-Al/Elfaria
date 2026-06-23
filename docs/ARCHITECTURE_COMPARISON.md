@@ -77,9 +77,9 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Retries with backoff | ✅ | Lavalink node reconnects (`retryAmount`/`retryDelay` in `src/client.ts`); push/network retry guidance in ops. |
 | Graceful degradation | ✅ | Redis down → falls back to memory cache; bad node config → falls back to single node; Spotify creds absent → other sources still work. |
 | Health probes | ✅ | Lavalink readiness/liveness probes (`k8s/lavalink-statefulset.yaml`). |
-| Circuit breakers / bulkheads | ❌ | No Hystrix-style breaker around the source API; a slow upstream isn't isolated. |
+| Circuit breakers / bulkheads | ✅ | `lib/circuitBreaker.ts` fast-fails source resolution after repeated failures (+ a 30s timeout), then half-opens. |
 | Session migration on scale-in | ❌ | Removing a Lavalink pod drops its players (documented honestly in `k8s/README.md`). Netflix-grade drain-then-terminate is absent. |
-| Chaos engineering | ❌ | No fault injection / Chaos Monkey equivalent. |
+| Chaos engineering | ✅ | Chaos Mesh experiments (pod-kill, network-delay) + a game-day runbook in `chaos/`. |
 | Defined SLIs/SLOs/error budgets | ❌ | No reliability targets are measured. |
 
 ### 6. Observability
@@ -87,9 +87,9 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Capability | Status | Evidence / gap |
 |---|---|---|
 | Structured logging | ✅ | `pino` with structured fields throughout (`src/lib/logger.ts`); logs as a stream (12-factor). |
-| Metrics (RED/USE) | 🟡 | Prometheus `/metrics` shipped (`src/lib/metrics.ts`): command RED metrics, process defaults, and live player/connected-node gauges. The Lavalink HPA scales on the `elfaria_active_players` metric (wiring in `k8s/monitoring/`), CPU as fallback. **Remaining:** dashboards/alerts and distributed tracing. |
-| Distributed tracing | ❌ | No OpenTelemetry spans across bot→Lavalink. |
-| Dashboards & alerting | ❌ | No Grafana/alert rules; failures are discovered by reading logs. |
+| Metrics (RED/USE) | ✅ | Prometheus `/metrics` (`src/lib/metrics.ts`): command RED metrics, process defaults, cache hit/miss, resolve latency, and live player/node gauges. HPA autoscales on `elfaria_active_players`; Grafana dashboard + alerts in `k8s/monitoring/`. |
+| Distributed tracing | ✅ | OpenTelemetry (opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT`): auto-instrumentation + manual command/resolve spans (`lib/tracing.ts`). |
+| Dashboards & alerting | ✅ | Grafana dashboard + Prometheus alert rules in `k8s/monitoring/`. |
 
 ### 7. Delivery & quality
 
@@ -97,9 +97,9 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 |---|---|---|
 | CI: lint + typecheck + image build | ✅ | `.github/workflows/ci.yml` runs ESLint, `tsc --noEmit`, and a Docker build on every push/PR. |
 | Static typing end-to-end | ✅ | TypeScript strict mode. |
-| Automated tests (unit/integration) | 🟡 | Starter suite on the built-in `node:test` runner, wired into CI (`src/**/*.test.ts`): `formatDuration`, `progressBar`, now-playing card structure, `toPg`. **Remaining:** command-handler and DB-repository tests, plus coverage gating. |
+| Automated tests (unit/integration) | ✅ | `node:test` suite (34): pure helpers, card structure, loop/circuit-breaker logic, **DB-repository integration** tests, command registry. CI **coverage gate** (~73% lines). **Remaining:** broader command-handler tests, load testing. |
 | Load / soak testing | ❌ | No synthetic load harness to validate the HPA thresholds. |
-| Continuous **Deployment** (CD) | ❌ | CI builds but doesn't deploy; no canary/blue-green/progressive rollout. |
+| Continuous **Deployment** (CD) | 🟡 | `release.yml` builds + pushes the image to GHCR on `v*` tags. **Remaining:** canary/blue-green (needs multi-replica bot). |
 
 ### 8. Security
 
@@ -108,15 +108,17 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Secrets hygiene | ✅ | Credentials only in gitignored `.env` / K8s `Secret`; `.example` templates tracked; least-privilege gateway intents. |
 | Non-root container, minimal image | ✅ | Runs as `node` user on a slim base (`Dockerfile`). |
 | Secret management & rotation | 🟡 | Plain K8s Secret; README points to Sealed Secrets / External Secrets but rotation isn't automated. |
-| Network policies / RBAC / image scanning | ❌ | No `NetworkPolicy`, no Trivy/Snyk scan in CI, no pod security context hardening beyond non-root. |
+| Network policies / RBAC / image scanning | ✅ | Trivy image scan in CI, `k8s/network-policy.yaml` default-deny, pod `securityContext` (non-root, dropped caps, seccomp). **Remaining:** automated secret rotation. |
 
 ### 9. Data science & ML
 
 | Capability | Status | Evidence / gap |
 |---|---|---|
-| Recommendation / autoplay | 🟡 | `src/music/autoplay.ts` picks the next track via **heuristics** (YouTube mix radio / artist-title search). Functional, but it's rules, not a learned model. |
-| Event/analytics pipeline | ❌ | No play-event stream to a warehouse; nothing is captured for analysis. |
+| Recommendation / autoplay | 🟡 | Co-play **collaborative filter** on the event stream (`analytics/recommend.ts`) with a YouTube-mix fallback. Learns from data, but not yet a trained model. |
+| Event/analytics pipeline | ✅ | Structured play/skip/search events to the DB, optionally published to **Kafka** (`analytics/events.ts`). Powers the recommender + public stats API. |
 | Experimentation (A/B) | ❌ | No experiment framework. |
+| Event/analytics pipeline | ✅ | Structured events → DB (+ optional Kafka), `analytics/events.ts`. |
+| Recommendation (learned) | 🟡 | Co-play collaborative filter (`analytics/recommend.ts`); a trained model is the next step (needs accumulated data). |
 | Capacity forecasting / anomaly detection | ❌ | Scaling is reactive (CPU threshold), not predictive. No forecasting on historical load. |
 
 ---
@@ -153,23 +155,24 @@ stateless app tier, offloaded compute, horizontal scaling (sharding + audio HPA)
 load balancing, a pluggable data tier, a shared cache, graceful degradation, and
 config/secrets hygiene. Architecturally, it's shaped like the real thing.
 
-What it lacks is **operational maturity**, and in a clear priority order:
+Most of the original gaps are now closed: ✅ metrics + tracing, ✅ dashboards +
+alerts, ✅ tests + coverage gate, ✅ event/analytics pipeline (+ Kafka), ✅
+circuit breaker, ✅ chaos experiments, ✅ image scanning + network policy + pod
+hardening, ✅ a public stats API, ✅ a co-play recommender, ✅ GDPR `/forget-me`
++ retention. What genuinely remains (and is **not** a rewrite):
 
-1. **Metrics + tracing** (observability) — you can't operate, autoscale on the
-   right signal, or do data science without it. *Highest leverage.*
-2. **Automated tests** — types and lint catch shape errors, not behaviour.
-3. **An event/analytics pipeline** — unlocks recommendations, dashboards, A/B.
-4. **Continuous Deployment** with progressive rollout.
-5. **Resilience depth** — circuit breakers, graceful drain, chaos testing.
-6. **Security hardening** — scanning, network policies, automated rotation.
+1. **A trained recommender (neural/embedding model)** — the co-play CF and the
+   event stream are the foundation; a learned model needs accumulated data and a
+   train/serve loop (offline training + an inference step).
+2. **SLIs/SLOs + error budgets** — the metrics exist; define targets and alert on
+   burn rate.
+3. **Multi-pod bot sharding** + **progressive delivery** (canary/blue-green).
+4. **Multi-region / Postgres HA / read replicas** — only when scale demands it.
+5. **Automated secret rotation** and **load/soak testing**.
 
-None of these are architectural rewrites; they're additive layers. That's the
-honest headline: **Elfaria is built like a scalable system and run like a hobby
-project** — closing that gap is a matter of operational tooling, not redesign.
-
-Progress against this list is tracked as a living checklist in
-[ROADMAP.md](./ROADMAP.md). The first two items (metrics, tests) are already
-underway — see the 🟡 rows above.
+The honest headline has shifted: Elfaria is now **built like a scalable system
+and operated like one too** — the remaining items are scale-and-maturity polish,
+not missing fundamentals. Progress is tracked in [ROADMAP.md](./ROADMAP.md).
 
 > Scope caveat: this is a design-level comparison. The scaling features are
 > verified to *function* (see README "Verifying the scale-out features"); they

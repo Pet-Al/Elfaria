@@ -69,7 +69,8 @@ not the whole bot.
 | `/clear`                             | Clear upcoming tracks (keeps the current song).  |
 | `/move <from> <to>`                  | Reorder a track within the queue.                |
 | `/summon`                            | Move Elfaria to your voice channel.              |
-| `/lyrics`                            | Show lyrics for the current track.               |
+| `/lyrics`                            | Show lyrics for the current track (LRCLIB).      |
+| `/forget-me`                         | Delete your stored data (GDPR erasure).          |
 | `/stop`                              | Stop, clear the queue, leave the channel.        |
 | `/pause`, `/resume`                  | Pause / resume playback.                         |
 | `/queue [page]`                      | Show the queue.                                  |

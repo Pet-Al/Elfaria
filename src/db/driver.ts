@@ -79,6 +79,19 @@ const SQLITE_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_favorites_user
     ON favorites (user_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id    TEXT,
+    user_id     TEXT,
+    event_type  TEXT NOT NULL,
+    title       TEXT,
+    uri         TEXT,
+    author      TEXT,
+    query       TEXT,
+    created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_guild ON events (guild_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_events_type ON events (event_type, created_at DESC);
 `;
 
 const POSTGRES_SCHEMA = `
@@ -130,6 +143,19 @@ const POSTGRES_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_favorites_user
     ON favorites (user_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS events (
+    id          BIGSERIAL PRIMARY KEY,
+    guild_id    TEXT,
+    user_id     TEXT,
+    event_type  TEXT NOT NULL,
+    title       TEXT,
+    uri         TEXT,
+    author      TEXT,
+    query       TEXT,
+    created_at  BIGINT NOT NULL DEFAULT extract(epoch from now())
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_guild ON events (guild_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_events_type ON events (event_type, created_at DESC);
 `;
 
 // ── SQLite (better-sqlite3) ───────────────────────────────────────────────────

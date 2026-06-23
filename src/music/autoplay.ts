@@ -1,4 +1,5 @@
 import type { Player, SearchResult, Track } from 'lavalink-client';
+import { coPlayedAfter } from '../analytics/recommend.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 
@@ -35,6 +36,24 @@ export async function autoPlayFunction(player: Player, lastTrack: Track | null):
   if (!player.get<boolean>('autoplay') || !lastTrack) return;
 
   try {
+    const seen = new Set(player.get<string[]>('autoplaySeen') ?? []);
+
+    // 1. Learned: what this guild most often plays after this track (co-play CF).
+    //    Resolve the top unseen suggestion; cold start (no data) falls through.
+    if (lastTrack.info.uri) {
+      const suggestions = await coPlayedAfter(player.guildId, lastTrack.info.uri, 5);
+      for (const s of suggestions) {
+        const found = (await player.search({ query: s.uri }, lastTrack.requester)) as SearchResult;
+        const track = found.tracks[0];
+        if (track?.info.identifier && !seen.has(track.info.identifier)) {
+          await player.queue.add(track);
+          rememberSeen(player, track.info.identifier);
+          return;
+        }
+      }
+    }
+
+    // 2. Heuristic fallback: YouTube's mix/radio (genre-aware) for any source.
     const videoId = await seedVideoId(player, lastTrack);
 
     const result = (await player.search(
@@ -49,7 +68,6 @@ export async function autoPlayFunction(player: Player, lastTrack: Track | null):
     )) as SearchResult;
 
     // Anti-repeat: never re-pick the seed or anything autoplayed recently.
-    const seen = player.get<string[]>('autoplaySeen') ?? [];
     const blocked = new Set<string>([...seen, lastTrack.info.identifier, videoId ?? '']);
     const candidates = result.tracks.filter(
       (t) => t.info.identifier && !blocked.has(t.info.identifier),
@@ -62,10 +80,14 @@ export async function autoPlayFunction(player: Player, lastTrack: Track | null):
     if (!next) return;
 
     await player.queue.add(next);
-    if (next.info.identifier) {
-      player.set('autoplaySeen', [...seen, next.info.identifier].slice(-SEEN_LIMIT));
-    }
+    if (next.info.identifier) rememberSeen(player, next.info.identifier);
   } catch (err) {
     logger.warn({ err, guildId: player.guildId }, 'autoplay failed to find a related track');
   }
+}
+
+/** Append an identifier to the rolling per-session "already autoplayed" set. */
+function rememberSeen(player: Player, identifier: string): void {
+  const seen = player.get<string[]>('autoplaySeen') ?? [];
+  player.set('autoplaySeen', [...seen, identifier].slice(-SEEN_LIMIT));
 }

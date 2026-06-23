@@ -37,3 +37,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t elfaria:ci .
+      - name: Scan image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: elfaria:ci
+          format: table
+          exit-code: '1' # fail the build on fixable HIGH/CRITICAL CVEs
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true

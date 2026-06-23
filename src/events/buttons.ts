@@ -11,7 +11,7 @@ import { toggleFavorite } from '../db/favorites.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
 import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
-import { ensurePlayer } from '../music/QueueManager.js';
+import { ensurePlayer, skipCurrent } from '../music/QueueManager.js';
 import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
 
@@ -131,8 +131,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         await reply('❌ Nothing is playing.');
         return;
       }
-      if (player.queue.tracks.length > 0) await player.skip();
-      else await player.stopPlaying(true, true); // run autoplay if it's enabled
+      await skipCurrent(player); // advances via autoplay when the queue is empty
       await reply('⏭️ Skipped.');
       return;
     case 'stop':

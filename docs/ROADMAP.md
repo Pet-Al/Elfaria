@@ -28,23 +28,19 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
     — auto-instrumentation + manual command/resolve spans (`src/lib/tracing.ts`).
 
 - 🟡 **2. Automated tests** — *types and lint catch shape errors, not behaviour.*
-  - ✅ Starter suite on the built-in `node:test` runner (no extra deps), wired
-    into CI: `formatDuration`, `progressBar`, the now-playing card structure,
-    `toPg` placeholder conversion (`src/**/*.test.ts`).
-  - ⬜ Command-handler tests with a mocked interaction.
-  - ⬜ DB repository tests against an ephemeral SQLite/Postgres.
-  - ⬜ Coverage reporting + a threshold gate in CI.
+  - ✅ `node:test` suite (34) in CI: pure helpers, card structure, loop +
+    circuit-breaker logic, **DB-repository integration** tests, command registry.
+  - ✅ Coverage reporting + threshold **gate** (`npm run test:coverage`).
+  - ⬜ Broader command-handler tests with a mocked interaction; load/soak tests.
 
-- ⬜ **3. Event / analytics pipeline** — *unblocks recommendations, dashboards, A/B all at once.*
-  - ⬜ Emit a structured event per play / skip / search (the `pino` logger is
-    already structured — add a dedicated event channel).
-  - ⬜ Ship events to a sink (Kafka/Kinesis → warehouse, or start with a table).
-  - ⬜ Privacy: opt-in/disclosure + a `/forget-me` deletion command (see below).
+- ✅ **3. Event / analytics pipeline** — *unblocks recommendations, dashboards, A/B.*
+  - ✅ Structured play/skip/search events to the `events` table (`analytics/events.ts`).
+  - ✅ Optional **Kafka** publish (KAFKA_BROKERS, `analytics/kafka.ts`).
+  - ✅ Privacy: `/forget-me` erasure + `PRIVACY.md` + 90-day retention prune.
 
-- ⬜ **4. Continuous Deployment** — *CI builds but doesn't deploy.*
-  - ⬜ Push the image to a registry on tag/release.
-  - ⬜ Progressive rollout (the K8s Deployment already uses a controlled strategy;
-    add canary/blue-green for the bot once it's multi-replica).
+- 🟡 **4. Continuous Deployment** — *CI builds, release publishes.*
+  - ✅ Push the image to GHCR on a `v*` tag (`.github/workflows/release.yml`).
+  - ⬜ Progressive rollout (canary/blue-green) — needs the multi-replica bot.
 
 - 🟡 **5. Resilience depth**
   - ✅ Timeout (30s) + circuit breaker around source resolution
@@ -57,20 +53,19 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
     network-delay). Documented in `docs/RELIABILITY.md`.
 
 - 🟡 **6. Autoplay: heuristic → personalised/learned**
-  - ✅ Heuristic autoplay today (`src/music/autoplay.ts`): YouTube mix radio /
-    artist-title search.
-  - ⬜ Per-user/guild preference signal captured (needs the event pipeline first).
-  - ⬜ Simple co-play collaborative filter, then evaluate a learned recommender.
+  - ✅ Heuristic autoplay: YouTube mix radio for all sources, anti-repeat.
+  - ✅ Preference signal captured (the event pipeline) + a **co-play collaborative
+    filter** (`analytics/recommend.ts`), tried before the YouTube-mix fallback.
+  - ✅ `/forget-me` erasure (per-user data).
+  - ⬜ A trained model (embeddings / neural recommender) on the accumulated data —
+    needs an offline train + inference-serve loop (the data is now being collected).
 
-  - ⬜ `/forget-me` deletion command — **now relevant**: the ⭐ favorites feature
-    stores per-user data (`favorites` table), so a self-service wipe + a short
-    privacy note are the responsible next step.
-
-- ⬜ **7. Security hardening**
-  - ⬜ Image scanning (Trivy/Snyk) in CI.
-  - ⬜ K8s `NetworkPolicy` + pod security context tightening.
+- 🟡 **7. Security hardening**
+  - ✅ Image scanning (Trivy) in CI — fails on fixable HIGH/CRITICAL CVEs.
+  - ✅ K8s `NetworkPolicy` (default-deny) + pod `securityContext` (non-root, dropped
+    caps, seccomp).
+  - ✅ Published privacy policy (`PRIVACY.md`) + data-retention prune.
   - ⬜ Automated secret rotation (Sealed Secrets / External Secrets Operator).
-  - ⬜ Published privacy policy + data-retention limits.
 
 ---
 
@@ -105,6 +100,16 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
 - Panel volume is session-only (reverts to the saved default when the bot leaves);
   /volume still sets the persistent default. Autoplay now uses YouTube's mix radio
   for ALL sources (genre-aware, not same-artist-only) with anti-repeat.
+- Event pipeline (DB + optional Kafka), co-play recommender, public stats API
+  (`/api/*`), `/forget-me` + PRIVACY.md + retention, Trivy scan + NetworkPolicy +
+  pod hardening. Commands are now GLOBAL by default (`deploy:guild` for dev).
+- Fixed: autoplay/skip now advances via autoplay instead of stopping; /lyrics
+  switched from the dead lyrics.ovh to LRCLIB.
+
+**Still genuinely remaining (honest)**
+- Trained neural recommender (data now accumulating); SLIs/SLOs + error budgets;
+  multi-pod bot sharding + canary deploys; multi-region / Postgres HA; automated
+  secret rotation; load/soak testing.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

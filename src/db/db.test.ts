@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import test, { after, before } from 'node:test';
+import { forgetUser } from '../analytics/events.js';
+import { coPlayedAfter } from '../analytics/recommend.js';
 import { config } from '../config.js';
+import { db } from './driver.js';
 import { listFavorites, toggleFavorite } from './favorites.js';
 import { getGuildSettings, updateGuildSettings } from './guilds.js';
 import { getHistory, getLastPlayed, recordPlay } from './history.js';
@@ -57,6 +60,37 @@ test('favorites toggle on/off and list newest-first', async () => {
     (await listFavorites('u1')).map((f) => f.title),
     ['B'],
   );
+});
+
+test('co-play recommender finds what plays after a seed (window-function CF)', async () => {
+  const insert = (uri: string, title: string) =>
+    db.run('INSERT INTO events (guild_id, event_type, uri, title, author) VALUES (?, ?, ?, ?, ?)', [
+      'g-cf',
+      'play',
+      uri,
+      title,
+      'x',
+    ]);
+  // Sequence A→B, C, A→B : B follows A twice, so it should rank first.
+  await insert('u:a', 'A');
+  await insert('u:b', 'B');
+  await insert('u:c', 'C');
+  await insert('u:a', 'A');
+  await insert('u:b', 'B');
+
+  const recs = await coPlayedAfter('g-cf', 'u:a', 5);
+  assert.equal(recs[0]?.uri, 'u:b', 'B is the most co-played track after A');
+});
+
+test('forgetUser wipes a user’s favorites + events (GDPR erasure)', async () => {
+  await toggleFavorite('u-forget', { title: 'A', uri: 'u:a' });
+  await db.run('INSERT INTO events (guild_id, user_id, event_type) VALUES (?, ?, ?)', [
+    'g',
+    'u-forget',
+    'search',
+  ]);
+  await forgetUser('u-forget');
+  assert.equal((await listFavorites('u-forget')).length, 0);
 });
 
 test('playlists save / list / load / delete', async () => {

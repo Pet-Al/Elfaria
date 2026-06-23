@@ -25,10 +25,20 @@ spec:
         prometheus.io/port: '9090'
         prometheus.io/path: /metrics
     spec:
+      # Pod hardening (doc roadmap #7): run as the image's non-root `node` user.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: bot
           # Build and push your image, then set it here (or via kustomize images:).
           image: ghcr.io/pet-al/elfaria:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ['ALL']
           ports:
             - name: metrics
               containerPort: 9090

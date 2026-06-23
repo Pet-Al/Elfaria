@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
-import { getPlayer } from '../music/QueueManager.js';
+import { getPlayer, skipCurrent } from '../music/QueueManager.js';
 
 export const skip: Command = {
   data: new SlashCommandBuilder().setName('skip').setDescription('Skip the current track.'),
@@ -20,11 +20,7 @@ export const skip: Command = {
     }
 
     const current = player.queue.current;
-    // skip() throws when there's no next track; when the queue is empty, stop but
-    // run autoplay (executeAutoplay=true) so the Next action keeps the music going
-    // when autoplay is on — otherwise it just ends the queue.
-    if (player.queue.tracks.length > 0) await player.skip();
-    else await player.stopPlaying(true, true);
+    await skipCurrent(player); // advances via autoplay when the queue is empty
 
     await replyOk(interaction, `⏭️ Skipped **${current.info.title}**.`);
   },

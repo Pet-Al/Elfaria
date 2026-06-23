@@ -3,6 +3,7 @@ import { type Client, type ContainerBuilder, type Message, MessageFlags } from '
 import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
+import { recordEvent } from '../analytics/events.js';
 import { recordPlay } from '../db/history.js';
 import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
@@ -191,6 +192,14 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
           { title: track.info.title, uri: track.info.uri, author: track.info.author },
           requester?.id,
         ).catch((err) => logger.warn({ err }, 'failed to record play history'));
+        recordEvent({
+          type: 'play',
+          guildId: player.guildId,
+          userId: requester?.id,
+          title: track.info.title,
+          uri: track.info.uri,
+          author: track.info.author,
+        });
       }
 
       const accentColor = await getAccentColor(track.info.artworkUrl);

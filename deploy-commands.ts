@@ -8,20 +8,16 @@ import { logger } from './src/lib/logger.js';
  *
  * Run this whenever command definitions change — NOT on every boot.
  *
- *   - With DISCORD_GUILD_ID set → registers to that one guild INSTANTLY, and
- *     CLEARS global commands so you don't get duplicates (a global copy AND a
- *     guild copy of the same command showing twice in the picker). The fast
- *     dev/iteration path.
- *   - Without it → registers GLOBALLY; propagation can take up to ~1 hour.
+ * DEFAULT (no flag) → GLOBAL registration: commands appear in EVERY server the
+ * bot is in (propagation can take up to ~1 hour). It also clears the configured
+ * guild's copy so nothing shows twice. This is what most deploys want.
  *
  * Flags:
- *   --global  Force GLOBAL registration even when DISCORD_GUILD_ID is set, and
- *             clear that guild's copy so commands don't show twice. This is the
- *             "ship to every server" path (npm run deploy:global) — you iterate
- *             fast with the instant guild deploy, then flip to global to release.
+ *   --guild   Register instantly to DISCORD_GUILD_ID only (and clear global) —
+ *             the fast dev/iteration path. Requires DISCORD_GUILD_ID set.
+ *   --global  Explicit alias for the default global behaviour.
  *   --list    Print what's currently registered in each scope (handy for
- *             diagnosing duplicates / which guild your commands are in) without
- *             changing anything.
+ *             diagnosing duplicates / which guild your commands are in).
  */
 type RegisteredCommand = { name: string };
 
@@ -103,9 +99,11 @@ async function register(forceGlobal: boolean): Promise<void> {
   }
 }
 
+// GLOBAL is the default (commands appear in every server). Pass --guild to
+// register instantly to DISCORD_GUILD_ID instead — the fast dev/iteration path.
 const run = process.argv.includes('--list')
   ? list
-  : () => register(process.argv.includes('--global'));
+  : () => register(!process.argv.includes('--guild'));
 run()
   .then(() => {
     // One-shot script: force a clean exit. Importing the command modules pulls

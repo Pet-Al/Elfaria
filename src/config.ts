@@ -169,6 +169,25 @@ export const config = {
     defaultCooldownMs: intOption('DEFAULT_COOLDOWN_MS', 3000),
   },
 
+  // Analytics event pipeline (doc roadmap #3). Events are always written to the
+  // DB; if KAFKA_BROKERS is set they're ALSO published to Kafka for a warehouse.
+  kafka: {
+    brokers: optional('KAFKA_BROKERS', '')
+      .split(',')
+      .map((b) => b.trim())
+      .filter(Boolean),
+    topic: optional('KAFKA_TOPIC', 'elfaria.events'),
+  },
+
+  // Read-only public stats API (doc roadmap). Off by default; aggregate, no PII.
+  api: {
+    enabled: optional('API_ENABLED', 'false') === 'true',
+    port: intOption('API_PORT', 8080),
+  },
+
+  // GDPR data retention: play_history + events older than this are pruned daily.
+  retentionDays: intOption('DATA_RETENTION_DAYS', 90),
+
   // Prometheus metrics (doc §10). On by default on its own port; a scraper hits
   // GET /metrics. Set METRICS_ENABLED=false to turn the endpoint off entirely.
   metrics: {
