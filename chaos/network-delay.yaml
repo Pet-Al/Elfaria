@@ -1,0 +1,28 @@
+# Chaos Mesh experiment: inject network latency + loss on the Lavalink pods.
+#
+# Hypothesis: when a source/Lavalink path is slow or lossy, the 30s resolve
+# timeout fires and the circuit breaker opens — users get a clean "source
+# unavailable" message, commands don't hang, and nothing crashes.
+#
+#   kubectl apply -f chaos/network-delay.yaml
+#   kubectl delete -f chaos/network-delay.yaml   # abort
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: elfaria-lavalink-latency
+  namespace: elfaria
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: ['elfaria']
+    labelSelectors:
+      app: lavalink
+  delay:
+    latency: '800ms'
+    jitter: '400ms'
+    correlation: '50'
+  loss:
+    loss: '15'
+    correlation: '25'
+  duration: '5m'

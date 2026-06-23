@@ -53,7 +53,8 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
     reduces cut-offs, not full session migration).
   - ✅ Self-healing: every event handler wrapped (errors logged, never crash the
     loop); commands wrapped; global handlers; fail-soft cache/lyrics.
-  - ⬜ Fault-injection / chaos test in a staging cluster.
+  - ✅ Chaos experiments + game-day runbook (`chaos/` — Chaos Mesh pod-kill &
+    network-delay). Documented in `docs/RELIABILITY.md`.
 
 - 🟡 **6. Autoplay: heuristic → personalised/learned**
   - ✅ Heuristic autoplay today (`src/music/autoplay.ts`): YouTube mix radio /
@@ -101,6 +102,9 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
 - DB-repo + command-registry tests; CI coverage gate (`npm run test:coverage`);
   CD release workflow (`.github/workflows/release.yml`, builds image on tags).
 - Every leave (idle/pause/empty/stop) now greys the card AND keeps a Replay button.
+- Panel volume is session-only (reverts to the saved default when the bot leaves);
+  /volume still sets the persistent default. Autoplay now uses YouTube's mix radio
+  for ALL sources (genre-aware, not same-artist-only) with anti-repeat.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

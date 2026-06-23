@@ -19,7 +19,9 @@ not the whole bot.
 > evidence-backed comparison against production architectures (Discord, Netflix,
 > 12-factor/SRE) — what Elfaria has and what it's missing — see
 > **[docs/ARCHITECTURE_COMPARISON.md](./docs/ARCHITECTURE_COMPARISON.md)**.
-> Kubernetes autoscaling for the audio tier lives in **[k8s/](./k8s/)**.
+> How it stays up (self-healing, tracing, circuit breaker, tests/CD) is in
+> **[docs/RELIABILITY.md](./docs/RELIABILITY.md)**; Kubernetes autoscaling lives
+> in **[k8s/](./k8s/)** and chaos experiments in **[chaos/](./chaos/)**.
 
 ## Features
 

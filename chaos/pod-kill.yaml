@@ -1,0 +1,41 @@
+# Chaos Mesh experiment: kill a Lavalink pod.
+#
+# Hypothesis: when a Lavalink pod dies, sessions on it drop but the bot
+# reconnects, new players route to a surviving node, and the command error rate
+# stays bounded. Run in STAGING with alerts wired and an abort plan.
+#
+#   kubectl apply -f chaos/pod-kill.yaml      # start
+#   kubectl delete -f chaos/pod-kill.yaml     # stop / abort
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: elfaria-lavalink-kill
+  namespace: elfaria
+spec:
+  action: pod-kill
+  mode: one # kill a single matching pod
+  selector:
+    namespaces: ['elfaria']
+    labelSelectors:
+      app: lavalink
+  # One-shot. Use a schedule (below) to repeat.
+  duration: '0s'
+---
+# Recurring version: kill a Lavalink pod every 10 minutes for an hour.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: elfaria-lavalink-kill-schedule
+  namespace: elfaria
+spec:
+  schedule: '*/10 * * * *'
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: ['elfaria']
+      labelSelectors:
+        app: lavalink

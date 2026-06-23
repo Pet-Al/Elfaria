@@ -8,7 +8,6 @@ import {
 import type { Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { toggleFavorite } from '../db/favorites.js';
-import { updateGuildSettings } from '../db/guilds.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
 import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
@@ -253,9 +252,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       await reply('❌ Invalid volume.');
       return;
     }
-    await updateGuildSettings(interaction.guildId, { defaultVolume: level });
+    // Live-only: the panel adjusts THIS session's volume but does NOT change the
+    // saved guild default, so the bot returns to the default next time it joins.
+    // (Use /volume to set the persistent default.)
     await player.setVolume(level);
-    await reply(`🔊 Volume set to **${level}%**.`);
+    await reply(`🔊 Volume set to **${level}%** for now.`);
   }
   void refreshPanel(player, true);
 }

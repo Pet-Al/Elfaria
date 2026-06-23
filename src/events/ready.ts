@@ -27,19 +27,23 @@ async function guildCount(client: Client<true>): Promise<number> {
   return client.guilds.cache.size;
 }
 
-/** Set the Streaming presence to "music in N servers". */
+/** Set the Streaming presence to "music in N servers". Never throws. */
 async function updatePresence(client: Client<true>): Promise<void> {
-  const count = await guildCount(client);
-  client.user.setPresence({
-    status: PresenceUpdateStatus.Online,
-    activities: [
-      {
-        name: `music in ${count} server${count === 1 ? '' : 's'}!`,
-        type: ActivityType.Streaming,
-        url: STREAM_URL,
-      },
-    ],
-  });
+  try {
+    const count = await guildCount(client);
+    client.user.setPresence({
+      status: PresenceUpdateStatus.Online,
+      activities: [
+        {
+          name: `music in ${count} server${count === 1 ? '' : 's'}!`,
+          type: ActivityType.Streaming,
+          url: STREAM_URL,
+        },
+      ],
+    });
+  } catch (err) {
+    logger.warn({ err }, 'failed to update presence');
+  }
 }
 
 /**
