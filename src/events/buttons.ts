@@ -11,7 +11,7 @@ import { toggleFavorite } from '../db/favorites.js';
 import { updateGuildSettings } from '../db/guilds.js';
 import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
-import { cycleLoop, loopLabel } from '../music/loop.js';
+import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
 import { ensurePlayer } from '../music/QueueManager.js';
 import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
@@ -148,12 +148,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await player.queue.shuffle();
       await reply('🔀 Shuffled.');
       return;
-    case 'loop': {
-      const next = await cycleLoop(player); // off → track×1 → track∞ → queue×1 → queue∞
-      await reply(next === 'off' ? '➡️ Loop off.' : `🔁 **${loopLabel(next)}**.`);
-      void refreshPanel(player); // reflect the new mode on the card immediately
-      return;
-    }
     default:
       await reply('❌ Unknown control.');
   }
@@ -219,11 +213,12 @@ async function handleReplay(
 }
 
 /**
- * Now-playing volume dropdown (customId np:volume). DJ-gated like /volume; the
- * chosen level is applied to the live player and persisted as the guild default.
+ * Now-playing dropdowns (customId np:volume and np:loop). Both are DJ-gated and
+ * require being in the bot's voice channel, mirroring /volume and /loop, and
+ * refresh the card so the new state shows immediately.
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (interaction.customId !== 'np:volume') return;
+  if (interaction.customId !== 'np:volume' && interaction.customId !== 'np:loop') return;
   const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
   if (!interaction.inCachedGuild()) {
@@ -244,7 +239,15 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return;
   }
   if (!(await isDjMember(interaction.guildId, member))) {
-    await reply('❌ You need the DJ role to change the volume.');
+    await reply('❌ You need the DJ role to do that.');
+    return;
+  }
+
+  if (interaction.customId === 'np:loop') {
+    const mode = (interaction.values[0] ?? 'off') as LoopState;
+    await applyLoop(player, mode);
+    await reply(mode === 'off' ? '➡️ Loop off.' : `🔁 ${loopLabel(mode)}.`);
+    void refreshPanel(player);
     return;
   }
 
@@ -253,8 +256,8 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     await reply('❌ Invalid volume.');
     return;
   }
-
   await updateGuildSettings(interaction.guildId, { defaultVolume: level });
   await player.setVolume(level);
   await reply(`🔊 Volume set to **${level}%**.`);
+  void refreshPanel(player);
 }

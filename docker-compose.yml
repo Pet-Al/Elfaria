@@ -1,7 +1,11 @@
-# Elfaria + Lavalink (doc §3 Option B, §9, §11).
+# Elfaria + Lavalink + Postgres (doc §3 Option B, §6, §9, §11).
 #
-# Two always-on containers on a private network:
+# Always-on containers on a private network:
 #   - lavalink: the audio service (does all sourcing/transcoding/streaming).
+#   - postgres: durable state (settings, playlists, history, favorites). One
+#     canonical store shared with the scale stack via the elfaria-pg volume, so
+#     your data is the same whether you run small or scaled. It's tiny next to
+#     Lavalink's JVM, so the low-end stack stays lightweight.
 #   - bot:      the discord.js gateway client; forwards voice to Lavalink.
 #
 # Set LAVALINK_PASSWORD in .env to secure the link (both services read it).
@@ -38,45 +42,42 @@ services:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
       # Empty unless you enable the redis service below (shared search cache).
       REDIS_URL: ${REDIS_URL:-}
-      # Empty = SQLite (default). Set to use the postgres service below.
-      DATABASE_URL: ${DATABASE_URL:-}
+      # Defaults to the bundled postgres service. Override in .env to point at an
+      # external/managed database; for a non-Docker `npm start` leave it unset to
+      # use embedded SQLite.
+      DATABASE_URL: ${DATABASE_URL:-postgres://elfaria:elfaria@postgres:5432/elfaria}
     depends_on:
       - lavalink
+      - postgres
     # Publish the Prometheus metrics endpoint so you can curl localhost:9090/metrics.
     ports:
       - '9090:9090'
     volumes:
-      # Persist the SQLite database across container restarts/redeploys.
+      # SQLite fallback file (used only if DATABASE_URL is unset).
       - elfaria-data:/app/data
     # To run sharded (only needed near ~2,500 guilds, doc §9), override the
     # command and set SHARDING=on in .env:
     #   command: ['npm', 'run', 'start:sharded']
 
-  # ── Optional shared cache (doc §7/§9) ───────────────────────────────────────
-  # Uncomment this service AND set REDIS_URL=redis://redis:6379 in .env to share
-  # the search cache across processes/shards. Not needed for a single process.
-  # redis:
-  #   image: redis:7-alpine
-  #   restart: unless-stopped
-  #   expose:
-  #     - '6379'
+  # Durable state. postgres:16-alpine idles at a few tens of MB — negligible next
+  # to Lavalink. The elfaria-pg volume is shared with docker-compose.scale.yml so
+  # the small and scaled stacks read/write the SAME database.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: elfaria
+      POSTGRES_PASSWORD: elfaria
+      POSTGRES_DB: elfaria
+    volumes:
+      - elfaria-pg:/var/lib/postgresql/data
+    expose:
+      - '5432'
 
-  # ── Optional Postgres (doc §6/§9) ───────────────────────────────────────────
-  # Uncomment this service AND set in .env:
-  #   DATABASE_URL=postgres://elfaria:elfaria@postgres:5432/elfaria
-  # to use Postgres instead of the embedded SQLite file.
-  # postgres:
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: elfaria
-  #     POSTGRES_PASSWORD: elfaria
-  #     POSTGRES_DB: elfaria
-  #   volumes:
-  #     - elfaria-pg:/var/lib/postgresql/data
-  #   expose:
-  #     - '5432'
+  # ── Optional shared cache (doc §7/§9) ───────────────────────────────────────
+  # Only needed to share the search cache across processes/shards (the scale
+  # stack). Enable via docker-compose.scale.yml; not needed for a single process.
 
 volumes:
   elfaria-data:
-  # elfaria-pg:
+  elfaria-pg:

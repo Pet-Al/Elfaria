@@ -76,10 +76,11 @@ test('nowPlayingCard: enriched panel shows source badge, state, up-next, volume 
   assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
-  // Three action rows: transport, loop+favorite, the np:volume select (type 3).
+  // Four action rows: transport, favorite, loop select, volume select.
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
-  assert.equal(rows.length, 3);
-  assert.equal(rows[2]?.components[0]?.type, 3);
+  assert.equal(rows.length, 4);
+  assert.equal(rows[2]?.components[0]?.type, 3, 'loop is a select menu');
+  assert.equal(rows[3]?.components[0]?.type, 3, 'volume is a select menu');
   assert.ok(blob.includes('np:loop') && blob.includes('np:favorite'));
 });
 

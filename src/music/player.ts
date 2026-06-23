@@ -23,6 +23,9 @@ import { type CardOptions, nowPlayingCard, replayRow } from './nowPlayingCard.js
 /** How often the now-playing progress bar is refreshed. */
 const PROGRESS_UPDATE_MS = 15_000;
 
+/** Minimum spacing between panel edits, so dropdown bursts can't flood a channel. */
+const MIN_EDIT_INTERVAL_MS = 3_000;
+
 async function send(
   client: Client,
   channelId: string | null,
@@ -51,12 +54,24 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
 
 /**
  * Re-render the live panel with the current player state (progress bar ticking,
- * loop/volume indicators). Exported so the loop button can refresh immediately.
+ * loop/volume indicators). Exported so the loop/volume dropdowns can refresh
+ * immediately.
+ *
+ * Throttled to at most one edit per MIN_EDIT_INTERVAL_MS per player, so a burst
+ * of dropdown changes (or stress) can't flood the channel. This is on top of
+ * discord.js's own REST queue, which already serialises requests and respects
+ * Discord's 429 rate limits — so worst case edits are paced, never dropped onto
+ * the gateway or crashing the bot.
  */
 export async function refreshPanel(player: Player): Promise<void> {
   const message = player.get<Message | undefined>('npMessage');
   const track = player.get<Track | undefined>('npTrack');
   if (!message || !track) return;
+
+  const last = player.get<number | undefined>('npLastEdit') ?? 0;
+  if (Date.now() - last < MIN_EDIT_INTERVAL_MS) return;
+  player.set('npLastEdit', Date.now());
+
   const accentColor = await getAccentColor(track.info.artworkUrl);
   await message
     .edit({

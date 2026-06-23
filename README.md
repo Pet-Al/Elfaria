@@ -44,13 +44,15 @@ not the whole bot.
   direct URLs, plus **Spotify / Apple Music / Deezer** through the bundled
   LavaSrc plugin (Spotify just needs free API credentials — see
   [Enabling Spotify](#enabling-spotify)).
-- **Persistence (SQLite)**: per-guild default volume, DJ role, and **saved
-  playlists** (`/playlist save|load|list|delete`) that survive restarts.
+- **Persistence (Postgres in Docker, SQLite for local dev)**: per-guild default
+  volume, DJ role, **saved playlists**, **play history**, and **favorites** that
+  survive restarts. The same async data layer runs on either engine; Docker uses
+  one shared Postgres so the small and scaled stacks see identical data.
 - **Hardening**: per-user command cooldowns, DJ permission gate, structured
-  (pino) logging, global error handlers, auto-leave on empty channel / queue
-  end, and graceful shutdown.
-- **Ops**: Docker + docker-compose (bot + Lavalink), GitHub Actions CI
-  (lint → typecheck → docker build), `.env`-based secrets.
+  (pino) logging, Prometheus `/metrics`, global error handlers, auto-leave on
+  empty channel / queue end, and graceful shutdown.
+- **Ops**: Docker + docker-compose (bot + Lavalink + Postgres), GitHub Actions CI
+  (lint → typecheck → test → docker build), `.env`-based secrets.
 
 ## Commands
 

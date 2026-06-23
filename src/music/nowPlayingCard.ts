@@ -28,8 +28,17 @@ import { formatDuration } from './QueueManager.js';
 const ACCENT = 0x5865f2;
 const BAR_SIZE = 18;
 
-/** Volume presets offered by the np:volume dropdown. */
-export const VOLUME_PRESETS = [0, 25, 50, 75, 100, 125, 150, 200];
+/** Volume presets offered by the np:volume dropdown (kept short). */
+export const VOLUME_PRESETS = [0, 50, 100, 150, 200];
+
+/** Loop options offered by the np:loop dropdown. */
+const LOOP_OPTIONS: { value: LoopState; label: string; emoji: string }[] = [
+  { value: 'off', label: 'No loop', emoji: '➡️' },
+  { value: 'track-once', label: 'Track — once more', emoji: '🔂' },
+  { value: 'track', label: 'Track — infinite', emoji: '🔂' },
+  { value: 'queue-once', label: 'Queue — one more lap', emoji: '🔁' },
+  { value: 'queue', label: 'Queue — infinite', emoji: '🔁' },
+];
 
 /** Human label + emoji for each audio source. */
 const SOURCE_BADGES: Record<string, string> = {
@@ -80,22 +89,9 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** Loop button — reflects the current loop state and cycles through all modes. */
-function loopButton(loopState: string | undefined, disabled: boolean): ButtonBuilder {
-  const state = (loopState ?? 'off') as LoopState;
-  const active = state !== 'off';
-  return new ButtonBuilder()
-    .setCustomId('np:loop')
-    .setEmoji(state.startsWith('track') ? '🔂' : '🔁')
-    .setLabel(active ? loopLabel(state) : 'Loop')
-    .setStyle(active ? ButtonStyle.Success : ButtonStyle.Secondary)
-    .setDisabled(disabled);
-}
-
-/** Secondary control row: loop toggle + ⭐ favorite (per-user). */
-export function secondaryRow(disabled = false, loopState?: string): ActionRowBuilder<ButtonBuilder> {
+/** The ⭐ favorite button row (per-user toggle, customId np:favorite). */
+export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    loopButton(loopState, disabled),
     new ButtonBuilder()
       .setCustomId('np:favorite')
       .setEmoji('⭐')
@@ -103,6 +99,33 @@ export function secondaryRow(disabled = false, loopState?: string): ActionRowBui
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled),
   );
+}
+
+/** The loop dropdown (handled in events/buttons.ts as customId np:loop). */
+export function loopSelectRow(
+  current?: string,
+  disabled = false,
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  const state = (current ?? 'off') as LoopState;
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('np:loop')
+    .setPlaceholder(
+      state === 'off'
+        ? '🔁 Loop: off'
+        : `${state.startsWith('track') ? '🔂' : '🔁'} ${loopLabel(state)}`,
+    )
+    .setDisabled(disabled)
+    .addOptions(
+      LOOP_OPTIONS.map((o) => {
+        const option = new StringSelectMenuOptionBuilder()
+          .setLabel(o.label)
+          .setValue(o.value)
+          .setEmoji(o.emoji);
+        if (o.value === state) option.setDefault(true);
+        return option;
+      }),
+    );
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
 /** The ↩️ Replay button (customId np:replay). One-shot — disabled after a click. */
@@ -236,10 +259,14 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (withControls) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
-    container.addActionRowComponents(secondaryRow(disabled, loopState));
-    if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, disabled));
-    // On a retired panel, the only live control is Replay — bring the track back.
-    if (disabled) container.addActionRowComponents(replayRow(false));
+    if (disabled) {
+      // Retired panel: the only live control is Replay — bring the track back.
+      container.addActionRowComponents(replayRow(false));
+    } else {
+      container.addActionRowComponents(favoriteRow(false));
+      container.addActionRowComponents(loopSelectRow(loopState, false));
+      if (withVolumeSelect) container.addActionRowComponents(volumeSelectRow(volume, false));
+    }
   }
 
   return container;
