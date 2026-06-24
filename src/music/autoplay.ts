@@ -1,4 +1,5 @@
 import type { Player, SearchResult, Track } from 'lavalink-client';
+import { assignVariant, recordExposure } from '../analytics/experiments.js';
 import { coPlayedAfter } from '../analytics/recommend.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
@@ -59,32 +60,56 @@ async function seedVideoId(player: Player, track: Track): Promise<string | null>
  * a buffer from). Failures in either source are swallowed — we return whatever
  * we got so the buffer can still fill from the other.
  */
+async function searchUri(player: Player, uri: string, seed: Track): Promise<Track | undefined> {
+  const found = (await player.search({ query: uri }, seed.requester)) as SearchResult;
+  return found.tracks[0];
+}
+
+/** Trained item2vec neighbours for the seed (empty when no model is loaded). */
+async function trainedCandidates(player: Player, seed: Track): Promise<Track[]> {
+  const out: Track[] = [];
+  try {
+    for (const rec of recommendTracks(seed.info.uri!, 10)) {
+      const t = await searchUri(player, rec.uri, seed);
+      if (t) out.push(t);
+    }
+  } catch (err) {
+    logger.debug({ err, guildId: player.guildId }, 'trained recommender lookup failed');
+  }
+  return out;
+}
+
+/** Co-play collaborative-filter candidates (what this guild plays next). */
+async function coplayCandidates(player: Player, seed: Track): Promise<Track[]> {
+  const out: Track[] = [];
+  try {
+    for (const s of await coPlayedAfter(player.guildId, seed.info.uri!, 10)) {
+      const t = await searchUri(player, s.uri, seed);
+      if (t) out.push(t);
+    }
+  } catch (err) {
+    logger.debug({ err, guildId: player.guildId }, 'co-play lookup failed; using mix only');
+  }
+  return out;
+}
+
 async function gatherCandidates(player: Player, seed: Track): Promise<Track[]> {
   const pool: Track[] = [];
 
   if (seed.info.uri) {
-    // 1. Trained: item2vec nearest-neighbours from the offline-trained embeddings
-    //    (most personalised). No-op when no model is loaded (cold start).
-    try {
-      for (const rec of recommendTracks(seed.info.uri, 10)) {
-        const found = (await player.search({ query: rec.uri }, seed.requester)) as SearchResult;
-        if (found.tracks[0]) pool.push(found.tracks[0]);
-      }
-    } catch (err) {
-      logger.debug({ err, guildId: player.guildId }, 'trained recommender lookup failed');
+    // A/B: which learned source goes first? Deterministic per guild; exposure
+    // logged once per session so skip-rate can be compared per variant.
+    const order = assignVariant('reco_order', player.guildId, ['trained-first', 'coplay-first']);
+    if (!player.get<boolean>('exposed_reco_order')) {
+      recordExposure('reco_order', order, { guildId: player.guildId });
+      player.set('exposed_reco_order', true);
     }
-
-    // 2. Learned heuristic: tracks this guild most often plays after the seed
-    //    (co-play CF) — works before a model has been trained.
-    try {
-      const suggestions = await coPlayedAfter(player.guildId, seed.info.uri, 10);
-      for (const s of suggestions) {
-        const found = (await player.search({ query: s.uri }, seed.requester)) as SearchResult;
-        if (found.tracks[0]) pool.push(found.tracks[0]);
-      }
-    } catch (err) {
-      logger.debug({ err, guildId: player.guildId }, 'co-play lookup failed; using mix only');
-    }
+    const [first, second] =
+      order === 'coplay-first'
+        ? [coplayCandidates, trainedCandidates]
+        : [trainedCandidates, coplayCandidates];
+    pool.push(...(await first(player, seed)));
+    pool.push(...(await second(player, seed)));
   }
 
   // 3. Heuristic fallback: YouTube's mix/radio (genre-aware) for any source.

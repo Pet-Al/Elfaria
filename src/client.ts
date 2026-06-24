@@ -3,6 +3,7 @@ import { LavalinkManager } from 'lavalink-client';
 import { config } from './config.js';
 import type { Command } from './lib/types.js';
 import { autoPlayFunction } from './music/autoplay.js';
+import { dbQueueStore } from './music/queueStore.js';
 
 /**
  * The gateway client (doc §1) plus the Lavalink manager (doc §3 Option B).
@@ -58,6 +59,9 @@ export class ElfariaClient extends Client {
       // out over this guild's shard websocket.
       sendToShard: (guildId, payload) => this.guilds.cache.get(guildId)?.shard?.send(payload),
       autoSkip: true,
+      // Persist queues to the DB so they survive a restart (session migration);
+      // paired with 24/7 auto-rejoin, the full queue comes back, not just voice.
+      queueOptions: { queueStore: dbQueueStore },
       playerOptions: {
         defaultSearchPlatform: config.music.searchPlatform as never,
         // When the queue empties: optionally autoplay a related track (per-guild
@@ -65,14 +69,16 @@ export class ElfariaClient extends Client {
         onEmptyQueue: { destroyAfterMs: config.music.leaveOnEndMs, autoPlayFunction },
         // Don't try to reconnect a player after a hard disconnect — just clean up.
         onDisconnect: { autoReconnect: false, destroyPlayer: true },
-        // Backstop against a genuinely broken stream looping forever. Kept very
-        // lenient on purpose: a tighter limit (e.g. 4/20s) DESTROYS the player on
-        // transient stalls — and a YouTube stream being THROTTLED emits trackStuck
-        // every ~10s, which would wrongly kill the session ("song randomly dies").
-        // Individual stuck/errored tracks already auto-skip via autoSkip; this only
-        // fires on a true error storm. The real fix for throttling is YouTube
-        // oauth in lavalink/application.yml.
-        maxErrorsPerTime: { threshold: 60_000, maxAmount: 30 },
+        // Backstop against a genuinely broken stream looping forever (configurable
+        // via MAX_TRACK_ERRORS / _WINDOW_MS, default 10/60s). NOT tight on purpose:
+        // a tight limit DESTROYS the player on transient stalls — and a THROTTLED
+        // YouTube stream stalls repeatedly, which would wrongly kill the session
+        // ("song randomly dies"). Individual bad tracks already auto-skip; this
+        // only fires on a real storm. Real throttling fix: YouTube OAuth (app.yml).
+        maxErrorsPerTime: {
+          threshold: config.music.maxTrackErrorsWindowMs,
+          maxAmount: config.music.maxTrackErrors,
+        },
       },
     });
   }

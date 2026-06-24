@@ -11,6 +11,7 @@ import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
 import { armPanelExpiry, clearPanelExpiry, forgetPanel, rememberPanel } from './panelStore.js';
+import { dbQueueStore } from './queueStore.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
@@ -299,6 +300,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       // However the player goes away, the greyed card below is standalone-
       // functional, so the saved ref is no longer needed.
       void forgetPanel(player.guildId);
+      // Drop the persisted queue on a normal stop/leave so it can't resurrect on
+      // the next /play. In 24/7 mode we KEEP it so the auto-rejoin can restore it.
+      if (!player.get<boolean>('247')) void dbQueueStore.delete(player.guildId);
       // queueEnd already rendered the final card (grey + Replay). For every other
       // way the player goes away — stop, pause-timeout, empty channel, idle leave —
       // grey the live panel AND keep a Replay button, so the card always greys out

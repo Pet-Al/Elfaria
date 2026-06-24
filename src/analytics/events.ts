@@ -13,7 +13,7 @@ import { publishEvent } from './kafka.js';
  * fire-and-forget and fully fail-soft — analytics never affect playback.
  */
 
-export type EventType = 'play' | 'skip' | 'search';
+export type EventType = 'play' | 'skip' | 'search' | 'exposure';
 
 export interface AnalyticsEvent {
   type: EventType;

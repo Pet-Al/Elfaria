@@ -144,6 +144,13 @@ export const config = {
     // the queue runs dry and autoplay is on, it tops up to this many related
     // tracks instead of just one, so there's always a visible "up next".
     autoplayBuffer: intOption('AUTOPLAY_QUEUE_SIZE', 5),
+    // Error-storm backstop: destroy a player only after this many stuck/errored
+    // tracks within the window. Deliberately lenient — too tight and a THROTTLED
+    // YouTube stream (which stalls repeatedly) wrongly kills the session ("song
+    // randomly dies"); individual bad tracks already auto-skip. The real fix for
+    // throttling is YouTube OAuth (lavalink/application.yml).
+    maxTrackErrors: intOption('MAX_TRACK_ERRORS', 10),
+    maxTrackErrorsWindowMs: intOption('MAX_TRACK_ERRORS_WINDOW_MS', 60_000),
   },
 
   // Audio is offloaded to Lavalink node(s) (doc §3 Option B / §9). The bot

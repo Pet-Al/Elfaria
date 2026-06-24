@@ -104,7 +104,13 @@ export async function autoRejoin247(client: ElfariaClient): Promise<void> {
       player.set('247', true);
       player.set('247Forever', state.forever);
 
-      if (state.lofi && client.user) {
+      // Restore the persisted queue (session migration) before falling back.
+      await player.queue.utils.sync().catch(() => undefined);
+      const hasQueue = !!player.queue.current || player.queue.tracks.length > 0;
+
+      if (hasQueue) {
+        if (!player.playing && !player.paused) await player.play().catch(() => undefined);
+      } else if (state.lofi && client.user) {
         const result = await resolve(
           player,
           `https://www.youtube.com/watch?v=${state.lofi}`,
