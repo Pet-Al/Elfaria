@@ -50,15 +50,58 @@ Cluster-wide one-shot work runs only on the pod that owns **shard 0**:
 - **Global command registration** on boot (`ownsShardZero()` in `events/ready.ts`)
   — so M pods don't each PUT the command set.
 
-### Honest limitation: cross-pod aggregates
+## Two scaling gotchas, explained
 
-Under the single-pod `ShardingManager`, the presence count is summed across
-shards via `fetchClientValues`. Across **separate pods** there's no such IPC, so
-each pod's "music in N servers" reflects only its own shards' guilds. For a true
-global count, publish per-pod counts to Redis and sum them (the `REDIS_URL` is
-already wired for the shared search cache). Until then, treat the presence
-number as per-pod. This doesn't affect playback or commands — only the cosmetic
-count.
+### 1. Why "doubled" commands happen (and how it's prevented now)
+
+Discord resolves slash commands from **two scopes and MERGES them**: *global*
+commands (every server) and *guild* commands (one server). A command registered
+in **both** scopes shows up **twice** in the picker — that's the "duplicate
+commands" you saw. It's not cosmetic:
+
+- the user sees two identical `/play` entries and can't tell them apart;
+- edits to one scope don't touch the other, so the two copies can silently
+  **drift** (different descriptions/options);
+- it makes the bot look broken.
+
+How you end up with both populated: you register globally (the default), then
+also run `deploy:guild` for instant testing — now the same names live in both
+scopes. The old boot path made it worse by re-PUTting global **every** restart,
+which re-starts Discord's ~1h propagation each time, so during that window the
+guild copy and the still-propagating global copy coexisted → dupes.
+
+**The fix** (`reconcileGlobalCommands`, `lib/commandSync.ts`):
+1. the global set is re-PUT **only when the definitions actually changed** (a
+   hash in `app_settings`), so a normal restart doesn't churn propagation;
+2. every boot **always clears the configured guild's copy**, so a leftover
+   `deploy:guild` can't coexist with global.
+
+So commands live in exactly **one** scope (global). If you ever orphaned a guild
+copy by removing `DISCORD_GUILD_ID`, clear it once with
+`npm run deploy -- --clear-guild <id>` (or `npm run deploy:list` to see what's
+where). The only unavoidable wait is Discord's **~1 hour** to propagate a *newly
+named* command globally — existing commands update quickly.
+
+### 2. The cross-pod presence bug (now fixed)
+
+Under the single-pod `ShardingManager`, the "music in N servers" count is summed
+across shards via `client.shard.fetchClientValues` — an IPC that only exists
+*within one manager process*. Across **separate pods** there is no such channel,
+so each pod could only see `client.guilds.cache.size` for **its own** shards —
+and the presence under-counted (e.g. it showed one pod's slice, not the whole
+fleet).
+
+**The fix** (`lib/clusterCount.ts`): when `REDIS_URL` is set, every process
+publishes its local guild count to a shared Redis hash keyed by its shard range,
+with a heartbeat expiry so a dead pod's entry drops out; the presence sums all
+the live entries. With no Redis it falls back to the local count (unchanged).
+This only affects the cosmetic count — playback and commands were never impacted.
+
+### Cross-pod aggregates (handled)
+
+The "music in N servers" presence is summed correctly across pods when
+`REDIS_URL` is set — see [gotcha #2](#2-the-cross-pod-presence-bug-now-fixed)
+above. Without Redis it falls back to a per-pod count.
 
 ## Progressive deploys (canary → full)
 

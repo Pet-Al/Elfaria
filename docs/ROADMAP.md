@@ -125,10 +125,19 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   (`docs/SLO.md`). **Multi-pod sharding** + canary partition rollouts. **Postgres
   HA + read replicas** (`DATABASE_REPLICA_URL`). **External Secrets** rotation.
   **k6 load/soak** harness. Full **data architecture** doc (`docs/DATA.md`).
+- Latest batch: **command-dupe reconcile** (idempotent global deploy + always
+  clear the guild copy) + owner-only **/admin** toggles (retention, /forget-me);
+  now-playing **⏮️ back** button, panel **expiry on crash/kick**, **favorite on
+  expired cards**; **/lofi** + **/247** (leaves only when alone); **anti-clipping
+  EQ** (fixes static); autoplay shows in queue **ahead** + **dequeues on off**;
+  precise **lyrics** errors + **trackStuck** handling + error-rate cap; **paginated
+  history** + **replay picker**; **/help**; **/queue** paging; **cross-pod presence
+  via Redis** (the sharding bug — fixed); persisted autoplay per guild.
 
 **Still genuinely remaining (honest)**
-- Cross-pod presence aggregation (per-pod count under multi-pod sharding — needs
-  a shared counter via Redis); a true black-box playback canary for the SLO.
+- 24/7 **auto-rejoin after a restart** (the toggle is session-level + persisted
+  intent, but the bot doesn't re-enter voice on boot yet); a true black-box
+  playback canary for the SLO; broader command-handler coverage.
 - Broader command-handler tests with a mocked interaction.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
