@@ -1,7 +1,7 @@
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
-import { db } from '../db/driver.js';
+import { readDb } from '../db/driver.js';
 import { logger } from './logger.js';
 
 /**
@@ -12,7 +12,7 @@ import { logger } from './logger.js';
  */
 
 async function topTracks(limit = 10): Promise<unknown[]> {
-  return db.all(
+  return readDb.all(
     `SELECT title, uri, author, COUNT(*) AS plays
      FROM events
      WHERE event_type = 'play' AND uri IS NOT NULL

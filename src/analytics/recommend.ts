@@ -1,4 +1,4 @@
-import { db } from '../db/driver.js';
+import { readDb } from '../db/driver.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -20,7 +20,7 @@ export interface CoPlayed {
 
 export async function coPlayedAfter(guildId: string, seedUri: string, limit = 5): Promise<CoPlayed[]> {
   try {
-    const rows = await db.all<{ uri: string; title: string; author: string | null; c: number }>(
+    const rows = await readDb.all<{ uri: string; title: string; author: string | null; c: number }>(
       `WITH seq AS (
          SELECT
            uri,

@@ -1,4 +1,4 @@
-import { db } from '../db/driver.js';
+import { readDb } from '../db/driver.js';
 
 /**
  * Turn the raw play events into training "sessions" for item2vec.
@@ -34,7 +34,7 @@ interface PlayRow {
 const DEFAULT_GAP_MS = 30 * 60 * 1000;
 
 export async function buildSessions(sessionGapMs = DEFAULT_GAP_MS): Promise<Dataset> {
-  const rows = await db.all<PlayRow>(
+  const rows = await readDb.all<PlayRow>(
     `SELECT guild_id, uri, title, author, created_at
        FROM events
       WHERE event_type = 'play' AND uri IS NOT NULL AND uri <> ''

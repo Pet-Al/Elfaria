@@ -319,7 +319,37 @@ async function build(): Promise<DbDriver> {
 /** The active driver. Created once at startup by initDatabase(). */
 export let db: DbDriver;
 
+/**
+ * Read path for heavy analytics queries. Points at the Postgres read replica
+ * when DATABASE_REPLICA_URL is set, otherwise at the primary (`db`). Routing
+ * reporting reads here keeps them off the hot transactional path; the small
+ * replication lag is acceptable for aggregates/recommendations (doc: docs/DATA.md).
+ * The transactional repositories keep using `db` (the primary) for correctness.
+ */
+export let readDb: Queryable;
+
+let replicaDriver: DbDriver | null = null;
+
 export async function createDriver(): Promise<DbDriver> {
   db = await build();
+  readDb = db; // default: reads go to the primary
+
+  if (config.database.replicaUrl.startsWith('postgres')) {
+    const { Pool, types } = await import('pg');
+    types.setTypeParser(20, (v) => Number.parseInt(v, 10));
+    const pool = new Pool({ connectionString: config.database.replicaUrl });
+    replicaDriver = new PostgresDriver(pool);
+    readDb = replicaDriver;
+    logger.info('database: read replica enabled — analytics reads routed to the replica');
+  }
+
   return db;
+}
+
+/** Close the replica pool (if any). The primary is closed via db.close(). */
+export async function closeReplica(): Promise<void> {
+  if (replicaDriver) {
+    await replicaDriver.close();
+    replicaDriver = null;
+  }
 }

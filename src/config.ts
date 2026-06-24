@@ -114,6 +114,12 @@ export const config = {
   database: {
     path: optional('DATABASE_PATH', './data/elfaria.db'),
     url: optional('DATABASE_URL', ''),
+    // Optional Postgres READ REPLICA (doc: docs/DATA.md / roadmap HA). When set
+    // to a postgres:// URL, heavy analytics reads (top-tracks, the recommender's
+    // co-play + training queries) are routed here instead of the primary, so
+    // reporting load doesn't compete with the hot transactional path. The
+    // transactional path (settings/favorites/queue) always uses the primary.
+    replicaUrl: optional('DATABASE_REPLICA_URL', ''),
   },
 
   log: {

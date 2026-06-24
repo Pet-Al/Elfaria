@@ -1,5 +1,5 @@
 import { logger } from '../lib/logger.js';
-import { createDriver, db } from './driver.js';
+import { closeReplica, createDriver, db } from './driver.js';
 
 /**
  * Embedded/durable database (doc §6). The concrete engine — SQLite (default) or
@@ -14,7 +14,8 @@ export async function initDatabase(): Promise<void> {
   logger.info({ dialect: db.dialect }, 'database initialised');
 }
 
-/** Close the connection cleanly on shutdown. */
+/** Close the connection(s) cleanly on shutdown. */
 export async function closeDatabase(): Promise<void> {
+  await closeReplica();
   await db.close();
 }

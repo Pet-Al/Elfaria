@@ -1,0 +1,72 @@
+# Highly-available Postgres for Elfaria (doc roadmap #7; details in docs/DATA.md).
+#
+# This is the SCALE-UP alternative to the single-instance `postgres.yaml`. It uses
+# the CloudNativePG operator (https://cloudnative-pg.io) — install that first:
+#   kubectl apply --server-side -f \
+#     https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.0.yaml
+#
+# What you get:
+#   • A 3-instance cluster: 1 primary + 2 streaming replicas, synchronous-capable.
+#   • Automatic failover (a replica is promoted if the primary dies) — no manual
+#     intervention, and the *service names below don't change* on failover.
+#   • Three stable services the bot points at:
+#       elfaria-pg-rw  → always the current PRIMARY   → DATABASE_URL
+#       elfaria-pg-ro  → REPLICAS only (read-only)    → DATABASE_REPLICA_URL
+#       elfaria-pg-r   → any instance (read)          (alt. replica endpoint)
+#   • Continuous backup + PITR when you wire `spec.backup` to object storage.
+#
+# Wire the bot (bot-deployment.yaml / bot-statefulset.yaml) to it:
+#   DATABASE_URL          = postgres://elfaria:$(PG_PASS)@elfaria-pg-rw:5432/elfaria
+#   DATABASE_REPLICA_URL  = postgres://elfaria:$(PG_PASS)@elfaria-pg-ro:5432/elfaria
+# The app routes the hot transactional path to -rw and heavy analytics reads to
+# -ro automatically (src/db/driver.ts → readDb).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: elfaria-pg
+  namespace: elfaria
+spec:
+  instances: 3
+  # Let the operator promote/cut over without waiting for a human.
+  primaryUpdateStrategy: unsupervised
+
+  # Durability vs latency: ANY 1 synchronous standby must ack a commit, so a
+  # single replica failure can't lose an acknowledged write. Drop to async
+  # (remove this block) if you favour write latency over zero-RPO.
+  postgresql:
+    synchronous:
+      method: any
+      number: 1
+
+  storage:
+    size: 10Gi
+    # storageClass: fast-ssd   # set to a replicated/zonal class in production
+
+  # Spread instances across zones so one zone failure doesn't take the cluster.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+
+  bootstrap:
+    initdb:
+      database: elfaria
+      owner: elfaria
+      # Create this secret with the app password (or use External Secrets —
+      # see k8s/external-secrets.yaml). Keys: username, password.
+      secret:
+        name: elfaria-pg-app
+
+  resources:
+    requests:
+      cpu: '250m'
+      memory: 512Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+  # backup:                         # uncomment + configure for PITR
+  #   barmanObjectStore:
+  #     destinationPath: s3://my-bucket/elfaria-pg
+  #     s3Credentials:
+  #       accessKeyId:     { name: pg-backup, key: ACCESS_KEY_ID }
+  #       secretAccessKey: { name: pg-backup, key: SECRET_ACCESS_KEY }
+  #   retentionPolicy: '30d'
