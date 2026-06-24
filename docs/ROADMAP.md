@@ -140,11 +140,29 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   playback probe** SLO canary (`lib/playbackProbe.ts` + alert); **all component
   interactions instrumented** (RED metrics, not just commands); **/replay <#>**
   integer param; **/dequeue**, **/filter-save**, **/status**; 30-min button expiry.
+- Latest batch (the "next big 5"): **configurable error backstop** (default 10/60s,
+  no more session-killing on throttle stalls); **queue persistence / session
+  migration** (DB queue store, restored on 24/7 rejoin); **A/B framework**
+  (`analytics/experiments.ts`, live recommender-ordering experiment); **predictive
+  autoscaling** (`predict_linear` forecast rules) + **anomaly detection** (player
+  drop + z-score command-rate); **broader command-handler tests**.
 
 **Still genuinely remaining (honest)**
 - A full end-to-end *play* canary into a real voice channel (the probe resolves
-  but doesn't play); broader command-handler coverage; cross-region failover
-  orchestration (only at much larger scale).
+  but doesn't play); cross-region active/active failover; wiring the forecast to
+  actually autoscale (KEDA) rather than advise.
+
+**Next big 5 (when you're ready)**
+1. **Wire the forecast to autoscale** — a KEDA `ScaledObject` driven by
+   `elfaria:active_players:predict_30m` so capacity scales *ahead* of demand.
+2. **End-to-end play canary** — a dedicated staging guild/VC the bot joins and
+   plays a known track in, verifying real audio (not just resolve) for the SLO.
+3. **Web dashboard** — a small read-only UI over the public API (now-playing per
+   guild, top tracks, queue) — the API already exposes the aggregates.
+4. **Train/serve loop automation** — a nightly CronJob that runs `npm run train`
+   and hot-reloads the recommender artifact, with model metrics tracked over time.
+5. **Lyrics-synced display** — use Lavalink's LyricsEvent / LRCLIB timed lyrics to
+   highlight the current line on the now-playing card.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

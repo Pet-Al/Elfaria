@@ -1,0 +1,77 @@
+# Predictive autoscaling + anomaly detection for Elfaria (doc roadmap, "data
+# science": capacity forecasting + anomaly detection). Apply like the other
+# PrometheusRules; match the `release` label to your Prometheus.
+#
+# These turn the metrics from reactive into proactive:
+#   • forecast — extrapolate the player-count trend so you can scale BEFORE a
+#     spike (Lavalink load is diurnal), rather than chasing CPU after it.
+#   • anomaly  — statistical (z-score) + ratio checks so "the bot quietly broke"
+#     pages someone, instead of waiting for a user to notice.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: elfaria-forecast
+  namespace: elfaria
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ── Recording rules (cheap inputs for the rules below) ────────────────────
+    - name: elfaria-forecast-recording
+      interval: 30s
+      rules:
+        - record: elfaria:command_rate:5m
+          expr: sum(rate(elfaria_commands_total[5m]))
+        # Linear extrapolation of the active-player trend, 30 minutes ahead.
+        - record: elfaria:active_players:predict_30m
+          expr: predict_linear(elfaria_active_players[1h], 30 * 60)
+
+    # ── Predictive scaling (advisory; wire to KEDA/HPA if you want auto) ───────
+    - name: elfaria-forecast-scaling
+      rules:
+        - alert: ElfariaScaleUpSoon
+          # Demand is trending up: predicted players in 30m are well above now.
+          # Advisory — pre-warm Lavalink, or feed predict_30m to a KEDA ScaledObject
+          # for genuine predictive autoscaling (the player-count HPA is reactive).
+          expr: elfaria:active_players:predict_30m > (1.5 * elfaria_active_players) and elfaria_active_players > 5
+          for: 10m
+          labels:
+            severity: info
+          annotations:
+            summary: Player demand trending up
+            description: >-
+              Active players are forecast to reach
+              {{ printf "%.0f" $value }} in ~30m (vs now) — expect a scale-up;
+              pre-warm capacity if you don't want to wait for the reactive HPA.
+
+    # ── Anomaly detection ─────────────────────────────────────────────────────
+    - name: elfaria-anomaly
+      rules:
+        - alert: ElfariaActivePlayersSuddenDrop
+          # Players collapsed vs the last hour's average — likely a mass voice
+          # disconnect / node outage, even if processes look healthy.
+          expr: |
+            elfaria_active_players < (0.4 * avg_over_time(elfaria_active_players[1h]))
+            and avg_over_time(elfaria_active_players[1h]) > 3
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Active players dropped sharply
+            description: Active players fell below 40% of the 1h average for 10m — investigate a mass disconnect or node outage.
+        - alert: ElfariaCommandRateAnomaly
+          # Z-score: command rate is >3σ BELOW its own 2h mean (a quiet outage —
+          # the bot is up but barely handling commands). Seasonal traffic dips
+          # won't trip it (the mean tracks the recent window), and a floor avoids
+          # firing on near-zero baselines.
+          expr: |
+            (
+              avg_over_time(elfaria:command_rate:5m[2h:5m]) - elfaria:command_rate:5m
+            ) > (3 * stddev_over_time(elfaria:command_rate:5m[2h:5m]))
+            and avg_over_time(elfaria:command_rate:5m[2h:5m]) > 0.05
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Command rate anomalously low
+            description: Command throughput is >3σ below its 2h average for 15m — the bot may be silently degraded.

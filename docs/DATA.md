@@ -79,6 +79,7 @@ keys are suffixed with the guild id. None of it is personal data.
 | `filter:<guildId>` | persisted server-wide filter (`/filter-save`), re-applied on player creation |
 | `247state:<guildId>` | JSON `{v,t,forever,lofi?}` — voice/text channel + mode (+ lofi station) for **24/7 auto-rejoin on restart** |
 | `panel:<guildId>` | live now-playing message ref, used to retire a panel left by a crashed process |
+| `queue:<guildId>` | serialized queue (current + upcoming + previous) — **queue persistence / session migration**, restored on 24/7 rejoin |
 
 ## 2. The event pipeline
 
@@ -89,13 +90,32 @@ break playback. Every event does two things:
 1. **Always** → an `INSERT` into the `events` table (the always-available sink).
 2. **If `KAFKA_BROKERS` is set** → ALSO published to Kafka (`src/analytics/kafka.ts`).
 
-**Event types** (`EventType`): `play`, `skip`, `search`.
+**Event types** (`EventType`): `play`, `skip`, `search`, `exposure`.
 
-| Field | play | skip | search |
-|-------|------|------|--------|
-| guildId, userId | ✓ | ✓ | ✓ |
-| title, uri, author | ✓ | ✓ | — |
-| query | — | — | ✓ (the search text) |
+| Field | play | skip | search | exposure |
+|-------|------|------|--------|----------|
+| guildId, userId | ✓ | ✓ | ✓ | ✓ |
+| title, uri, author | ✓ | ✓ | — | — |
+| query | — | — | ✓ (the search text) | ✓ (`experiment=variant`) |
+
+### A/B experiments
+
+`analytics/experiments.ts` buckets a unit (guild/user) into a variant by hashing
+`experiment:unit` (deterministic, no stored assignments) and logs an `exposure`
+event. Combined with `skip`/`play` events you can compare outcomes per variant.
+Example — skip rate by recommender-ordering variant:
+
+```sql
+WITH g AS (   -- guild → its assigned variant (from exposure events)
+  SELECT DISTINCT guild_id, substr(query, instr(query,'=')+1) AS variant
+  FROM events WHERE event_type='exposure' AND query LIKE 'reco_order=%'
+)
+SELECT g.variant,
+       AVG(CASE WHEN e.event_type='skip' THEN 1.0 ELSE 0 END) AS skip_rate
+FROM events e JOIN g ON g.guild_id = e.guild_id
+WHERE e.event_type IN ('play','skip')
+GROUP BY g.variant;
+```
 
 ### Kafka
 

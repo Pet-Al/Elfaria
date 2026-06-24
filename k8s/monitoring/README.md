@@ -88,6 +88,10 @@ kubectl -n elfaria describe hpa lavalink
   Targets, error budgets, and the budget policy are documented in
   [`../../docs/SLO.md`](../../docs/SLO.md). Apply the same way; match the
   `release` label.
+- **`prometheus-forecast-rules.yaml`** — **predictive** scaling (`predict_linear`
+  on active players → an advisory "scale-up soon" / KEDA input) plus **anomaly**
+  detection (sudden player-count drop; a z-score "command rate anomalously low"
+  quiet-outage detector). Same apply + `release` label.
 
 ## Until this is installed
 

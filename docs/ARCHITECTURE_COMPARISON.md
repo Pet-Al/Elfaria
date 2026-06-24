@@ -78,7 +78,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Graceful degradation | ✅ | Redis down → falls back to memory cache; bad node config → falls back to single node; Spotify creds absent → other sources still work. |
 | Health probes | ✅ | Lavalink readiness/liveness probes (`k8s/lavalink-statefulset.yaml`). |
 | Circuit breakers / bulkheads | ✅ | `lib/circuitBreaker.ts` fast-fails source resolution after repeated failures (+ a 30s timeout), then half-opens. |
-| Session migration on scale-in | ❌ | Removing a Lavalink pod drops its players (documented honestly in `k8s/README.md`). Netflix-grade drain-then-terminate is absent. |
+| Session migration on scale-in | 🟡 | The **queue persists** to the DB (`music/queueStore.ts`) and is restored on 24/7 auto-rejoin (`queue.utils.sync()`), so a restart keeps the playlist. Lavalink still can't migrate a *mid-stream* audio session between nodes, so a track restarts from the top rather than resuming mid-song. |
 | Chaos engineering | ✅ | Chaos Mesh experiments (pod-kill, network-delay) + a game-day runbook in `chaos/`. |
 | Defined SLIs/SLOs/error budgets | ✅ | Command-success, latency & playback-availability SLOs with 28d error budgets and **multi-window burn-rate** alerts (`docs/SLO.md`, `k8s/monitoring/prometheus-slo-rules.yaml`). |
 
@@ -116,18 +116,19 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 |---|---|---|
 | Recommendation / autoplay | ✅ | **Trained item2vec/SGNS** embeddings (`src/ml/`, `npm run train`) served on boot and queried first by autoplay, then a co-play **collaborative filter** (`analytics/recommend.ts`), then a YouTube-mix fallback. Plus an autoplay **buffer** + **/reroll**. |
 | Event/analytics pipeline | ✅ | Structured play/skip/search events to the DB, optionally published to **Kafka** (`analytics/events.ts`). Powers the recommender + public stats API. |
-| Experimentation (A/B) | ❌ | No experiment framework. |
+| Experimentation (A/B) | ✅ | `analytics/experiments.ts` — deterministic hash-bucketed variants + `exposure` events; a live experiment (recommender ordering) runs in autoplay. Analysis query in `docs/DATA.md`. |
 | Event/analytics pipeline | ✅ | Structured events → DB (+ optional Kafka), `analytics/events.ts`. |
 | Recommendation (learned) | ✅ | item2vec/SGNS model trained offline on listening sessions (`scripts/train-recommender.ts`), loaded for inference and used ahead of the co-play CF. Tests prove it learns genre clusters. |
-| Capacity forecasting / anomaly detection | ❌ | Scaling is reactive (CPU threshold), not predictive. No forecasting on historical load. |
+| Capacity forecasting / anomaly detection | 🟡 | `predict_linear` forecast on active players (advisory "scale-up soon" / KEDA input) + anomaly alerts (sudden player drop, z-score command-rate) in `k8s/monitoring/prometheus-forecast-rules.yaml`. Reactive HPA still does the actual scaling; wiring the forecast to autoscale is the next step. |
 
 ---
 
 ## The data-science angle, concretely
 
-Where a Netflix-style data practice plugs into Elfaria. **Items 1 and 2 are now
-built** (the trained recommender + the event pipeline); 3 and 4 remain as the
-next data-driven steps:
+Where a Netflix-style data practice plugs into Elfaria. **All four are now
+built**: 1–2 (trained recommender + event pipeline), and 3–4 below (predictive
+scaling + anomaly detection in `k8s/monitoring/prometheus-forecast-rules.yaml`).
+Plus an **A/B framework** (`analytics/experiments.ts`) on top of the pipeline:
 
 1. **Autoplay → learned recommender.** Today's heuristic could become a model
    trained on (skip, replay, queue-add) signals. Requires the event pipeline
