@@ -1,13 +1,15 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { setAppSetting } from '../db/appSettings.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
 import { FILTER_CHOICES, applyFilter } from '../music/filters.js';
-import { getPlayer } from '../music/QueueManager.js';
+import { filterKey, getPlayer } from '../music/QueueManager.js';
 
 /**
- * /filter — apply an audio filter / EQ preset to THIS session (resets any
- * current filter first). For a server-wide default that survives restarts, use
- * /filter-save. Presets + apply logic live in music/filters.ts (anti-clipping).
+ * /filter — apply an audio filter / EQ preset (resets any current filter first).
+ * Optional `save:true` persists it as this SERVER's default, re-applied to every
+ * new player (survives restarts). Presets + apply logic live in music/filters.ts
+ * (anti-clipping; includes a "vocal" clarity preset).
  */
 export const filter: Command = {
   data: new SlashCommandBuilder()
@@ -19,6 +21,11 @@ export const filter: Command = {
         .setDescription('The effect to apply (replaces any current filter).')
         .setRequired(true)
         .addChoices(...FILTER_CHOICES),
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName('save')
+        .setDescription('Save as this server’s default (re-applies on every join).'),
     ),
   async execute(interaction) {
     const voice = await getVoiceContext(interaction);
@@ -28,17 +35,20 @@ export const filter: Command = {
       return;
     }
 
+    const type = interaction.options.getString('type', true);
+    const save = interaction.options.getBoolean('save') ?? false;
+
     const player = getPlayer(interaction);
-    if (!player?.queue.current) {
+    // Saving is allowed without a live player; applying needs one.
+    if (player?.queue.current) await applyFilter(player, type);
+    else if (!save) {
       await replyError(interaction, 'Nothing is playing.');
       return;
     }
 
-    const type = interaction.options.getString('type', true);
-    await applyFilter(player, type);
-    await replyOk(
-      interaction,
-      type === 'off' ? '🎛️ Filters cleared.' : `🎛️ Applied **${type}** filter.`,
-    );
+    if (save) await setAppSetting(filterKey(interaction.guildId!), type);
+
+    const base = type === 'off' ? '🎛️ Filters cleared.' : `🎛️ Applied **${type}** filter.`;
+    await replyOk(interaction, save ? `${base} Saved as the server default.` : base);
   },
 };

@@ -21,6 +21,7 @@ export const FILTER_CHOICES = [
   { name: 'Pop', value: 'pop' },
   { name: 'Rock', value: 'rock' },
   { name: 'Electronic', value: 'electronic' },
+  { name: 'Vocal (singing clarity)', value: 'vocal' },
 ] as const;
 
 /** Build a 15-band EQ from an array of gains (band index = position). */
@@ -42,6 +43,11 @@ export const EQ_PRESETS: Record<string, EQBand[]> = {
   ]),
   electronic: bands([
     0.12, 0.1, 0.06, 0.02, 0.0, -0.03, -0.04, -0.02, 0.0, 0.02, 0.04, 0.05, 0.06, 0.07, 0.07,
+  ]),
+  // Vocal clarity: gently cut the low rumble/mud and lift the presence band
+  // (~630Hz–4kHz, bands 7–11) where voices sit, for clearer singing.
+  vocal: bands([
+    -0.05, -0.04, -0.03, -0.02, 0.0, 0.03, 0.06, 0.1, 0.12, 0.12, 0.1, 0.08, 0.04, 0.0, -0.02,
   ]),
 };
 

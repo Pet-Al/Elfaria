@@ -4,7 +4,7 @@ import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { startApiServer } from '../lib/api.js';
 import { clusterGuildCount, publishLocalCount, shardKey } from '../lib/clusterCount.js';
-import { reconcileGlobalCommands } from '../lib/commandSync.js';
+import { clearGuildCommands, reconcileGlobalCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import { startPlayCanary } from '../lib/playCanary.js';
@@ -30,6 +30,17 @@ function ownsShardZero(client: Client<true>): boolean {
 }
 
 async function autoDeployCommands(client: Client<true>): Promise<void> {
+  // Nuclear de-dupe: clear guild-scoped commands from every server this process
+  // owns (runs per pod for its own guilds, regardless of shard 0).
+  if (config.commands.clearGuildCommands) {
+    try {
+      const cleared = await clearGuildCommands([...client.guilds.cache.keys()]);
+      logger.info({ cleared }, 'cleared guild-scoped commands (CLEAR_ALL_GUILD_COMMANDS)');
+    } catch (err) {
+      logger.warn({ err }, 'clear-all-guild-commands failed');
+    }
+  }
+
   if (!config.commands.autoDeploy) return;
   if (!ownsShardZero(client)) return;
   try {

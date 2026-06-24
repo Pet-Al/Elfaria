@@ -43,26 +43,28 @@ export async function forgetPanel(guildId: string): Promise<void> {
   await deleteAppSetting(key(guildId)).catch(() => undefined);
 }
 
-// ── Time-based expiry of a finished card's Replay/Favorite buttons ────────────
+// ── Time-based expiry of a retired card's Replay/Favorite buttons ─────────────
+// Keyed by MESSAGE id so every retired card (final, buried, or destroyed) gets
+// its own ~30-minute Favorite/Replay window independently.
 const EXPIRY_MS = 30 * 60 * 1000;
 const expiryTimers = new Map<string, NodeJS.Timeout>();
 
-/** Cancel a guild's pending button-expiry (e.g. a new track went live). */
-export function clearPanelExpiry(guildId: string): void {
-  const timer = expiryTimers.get(guildId);
+/** Cancel a message's pending button-expiry (e.g. that message went live again). */
+export function clearPanelExpiry(messageId: string): void {
+  const timer = expiryTimers.get(messageId);
   if (timer) clearTimeout(timer);
-  expiryTimers.delete(guildId);
+  expiryTimers.delete(messageId);
 }
 
-/** Grey out a finished card's remaining buttons after EXPIRY_MS (~30 min). */
-export function armPanelExpiry(guildId: string, message: Message): void {
-  clearPanelExpiry(guildId);
+/** Grey out a retired card's remaining buttons after EXPIRY_MS (~30 min). */
+export function armPanelExpiry(message: Message): void {
+  clearPanelExpiry(message.id);
   const timer = setTimeout(() => {
-    expiryTimers.delete(guildId);
+    expiryTimers.delete(message.id);
     void expireMessage(message);
   }, EXPIRY_MS);
   timer.unref?.(); // don't keep the process alive just for this
-  expiryTimers.set(guildId, timer);
+  expiryTimers.set(message.id, timer);
 }
 
 async function expireMessage(message: Message): Promise<void> {

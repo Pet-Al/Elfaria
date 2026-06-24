@@ -75,6 +75,31 @@ export async function syncCommands(scope: CommandScope = 'global'): Promise<Sync
   return { scope: 'guild', count: body.length, cleared };
 }
 
+/**
+ * Clear GUILD-scoped commands from each of `guildIds`, returning how many guilds
+ * actually had some. The nuclear de-dupe for leftover `deploy:guild` registrations
+ * that double the global set in servers we don't track via DISCORD_GUILD_ID.
+ */
+export async function clearGuildCommands(guildIds: string[]): Promise<number> {
+  const rest = new REST().setToken(config.discord.token);
+  const { clientId } = config.discord;
+  let cleared = 0;
+  for (const guildId of guildIds) {
+    try {
+      const existing = (await rest.get(
+        Routes.applicationGuildCommands(clientId, guildId),
+      )) as RegisteredCommand[];
+      if (existing.length > 0) {
+        await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] });
+        cleared += 1;
+      }
+    } catch {
+      // missing access / left guild — skip
+    }
+  }
+  return cleared;
+}
+
 const HASH_KEY = 'commands_global_hash';
 
 /** A short, stable hash of the current command definitions (names + shapes). */

@@ -1,12 +1,12 @@
 import type { ElfariaClient } from '../client.js';
 import type { Command } from '../lib/types.js';
+import { about } from './about.js';
 import { admin } from './admin.js';
 import { autoplay } from './autoplay.js';
 import { clear } from './clear.js';
 import { dequeue } from './dequeue.js';
 import { favorites } from './favorites.js';
 import { filter } from './filter.js';
-import { filtersave } from './filtersave.js';
 import { forgetme } from './forgetme.js';
 import { help } from './help.js';
 import { history } from './history.js';
@@ -65,7 +65,6 @@ export const commands: Command[] = [
   lofi,
   twentyfourseven,
   filter,
-  filtersave,
   status,
   history,
   replay,
@@ -73,6 +72,7 @@ export const commands: Command[] = [
   lyrics,
   forgetme,
   admin,
+  about,
   help,
 ];
 

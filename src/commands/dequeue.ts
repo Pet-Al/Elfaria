@@ -12,7 +12,7 @@ import { refreshPanel } from '../music/player.js';
  */
 export const dequeue: Command = {
   data: new SlashCommandBuilder()
-    .setName('dequeue')
+    .setName('autoplay-dequeue')
     .setDescription('Remove autoplay-added tracks from the queue (keeps your own).'),
   async execute(interaction) {
     const voice = await getVoiceContext(interaction);

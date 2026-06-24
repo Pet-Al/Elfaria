@@ -1,10 +1,15 @@
 /**
  * LRCLIB (lrclib.net) lyrics — a free, keyless, community lyrics DB. Shared by
  * the /lyrics command (plain lyrics) and the now-playing card (timed/synced
- * lyrics). No Lavalink plugin (so it can't break Lavalink's boot). Fail-soft.
+ * lyrics). No Lavalink plugin (so it can't break Lavalink's boot).
+ *
+ * LRCLIB can be slow/flaky, so each request has a generous timeout and ONE retry
+ * — a single transient timeout used to surface as "lyrics unavailable", which was
+ * the recurring "lyrics don't work". A clean 404 is still treated as not-found.
  */
 
 const UA = 'Elfaria (+https://github.com/Pet-Al/Elfaria)';
+const TIMEOUT_MS = 12_000;
 
 interface LrcEntry {
   plainLyrics?: string | null;
@@ -12,9 +17,6 @@ interface LrcEntry {
   trackName?: string;
   artistName?: string;
 }
-
-type FetchOpts = { headers: Record<string, string>; signal: AbortSignal };
-const opts = (): FetchOpts => ({ headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
 
 /** Strip the noise YouTube/SoundCloud titles add so the lookup matches. */
 export function clean(input: string): string {
@@ -38,6 +40,32 @@ export function candidatePairs(rawArtist: string, rawTitle: string): [string, st
   return pairs;
 }
 
+interface HttpResult {
+  res?: Response;
+  serviceError: boolean;
+}
+
+/** GET with a generous timeout and one retry on timeout/5xx (never throws). */
+async function httpGet(url: string): Promise<HttpResult> {
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (res.status >= 500) {
+        if (attempt === 0) continue; // transient — retry once
+        return { serviceError: true };
+      }
+      return { res, serviceError: false };
+    } catch {
+      if (attempt === 0) continue; // network/timeout — retry once
+      return { serviceError: true };
+    }
+  }
+  return { serviceError: true };
+}
+
 interface Attempt {
   text?: string;
   serviceError: boolean;
@@ -46,40 +74,34 @@ interface Attempt {
 /** found → lyrics; not-found → LRCLIB lacks it; error → service unreachable. */
 export type LyricsResult = { status: 'found'; text: string } | { status: 'not-found' } | { status: 'error' };
 
-async function lookup(artist: string, title: string, o: FetchOpts): Promise<Attempt> {
+const getUrl = (artist: string, title: string) =>
+  `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`;
+
+async function lookup(artist: string, title: string): Promise<Attempt> {
   if (!artist || !title) return { serviceError: false };
-  try {
-    const res = await fetch(
-      `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
-      o,
-    );
-    if (res.status === 404) return { serviceError: false };
-    if (!res.ok) return { serviceError: true };
-    const data = (await res.json()) as LrcEntry;
-    return { text: data.plainLyrics?.trim() || undefined, serviceError: false };
-  } catch {
-    return { serviceError: true };
-  }
+  const { res, serviceError } = await httpGet(getUrl(artist, title));
+  if (serviceError || !res) return { serviceError: true };
+  if (res.status === 404) return { serviceError: false }; // genuine miss
+  if (!res.ok) return { serviceError: true };
+  const data = (await res.json().catch(() => ({}))) as LrcEntry;
+  return { text: data.plainLyrics?.trim() || undefined, serviceError: false };
 }
 
-async function searchLyrics(query: string, o: FetchOpts): Promise<Attempt> {
+async function searchLyrics(query: string): Promise<Attempt> {
   if (!query.trim()) return { serviceError: false };
-  try {
-    const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`, o);
-    if (!res.ok) return { serviceError: true };
-    const results = (await res.json()) as LrcEntry[];
-    return {
-      text: results.find((r) => r.plainLyrics?.trim())?.plainLyrics?.trim() || undefined,
-      serviceError: false,
-    };
-  } catch {
-    return { serviceError: true };
-  }
+  const { res, serviceError } = await httpGet(
+    `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`,
+  );
+  if (serviceError || !res || !res.ok) return { serviceError: serviceError || !res?.ok };
+  const results = (await res.json().catch(() => [])) as LrcEntry[];
+  return {
+    text: results.find((r) => r.plainLyrics?.trim())?.plainLyrics?.trim() || undefined,
+    serviceError: false,
+  };
 }
 
 /** Best-effort plain lyrics for a track. Never throws; reports found/not-found/error. */
 export async function fetchLyrics(rawArtist: string, rawTitle: string): Promise<LyricsResult> {
-  const o = opts();
   const pairs = candidatePairs(rawArtist, rawTitle);
   const [artist, title] = pairs[0]!;
 
@@ -90,11 +112,11 @@ export async function fetchLyrics(rawArtist: string, rawTitle: string): Promise<
   };
 
   for (const [a, t] of pairs) {
-    const text = consider(await lookup(a, t, o));
+    const text = consider(await lookup(a, t));
     if (text) return { status: 'found', text };
   }
   for (const query of [`${title} ${artist}`, title]) {
-    const text = consider(await searchLyrics(query, o));
+    const text = consider(await searchLyrics(query));
     if (text) return { status: 'found', text };
   }
   return serviceError ? { status: 'error' } : { status: 'not-found' };
@@ -114,10 +136,8 @@ export function parseLrc(lrc: string): SyncedLine[] {
     const text = raw.replace(/\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/g, '').trim();
     const stamps = raw.matchAll(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g);
     for (const m of stamps) {
-      const min = Number(m[1]);
-      const sec = Number(m[2]);
       const frac = m[3] ? Number(`0.${m[3]}`) : 0;
-      const t = Math.round((min * 60 + sec + frac) * 1000);
+      const t = Math.round((Number(m[1]) * 60 + Number(m[2]) + frac) * 1000);
       if (text) out.push({ t, text });
     }
   }
@@ -129,22 +149,15 @@ export async function fetchSyncedLyrics(
   rawArtist: string,
   rawTitle: string,
 ): Promise<SyncedLine[] | null> {
-  const o = opts();
   for (const [artist, title] of candidatePairs(rawArtist, rawTitle)) {
     if (!artist || !title) continue;
-    try {
-      const res = await fetch(
-        `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
-        o,
-      );
-      if (!res.ok) continue;
-      const data = (await res.json()) as LrcEntry;
-      if (data.syncedLyrics?.trim()) {
-        const lines = parseLrc(data.syncedLyrics);
-        if (lines.length) return lines;
-      }
-    } catch {
-      return null; // service issue — give up quietly
+    const { res, serviceError } = await httpGet(getUrl(artist, title));
+    if (serviceError) return null;
+    if (!res?.ok) continue;
+    const data = (await res.json().catch(() => ({}))) as LrcEntry;
+    if (data.syncedLyrics?.trim()) {
+      const lines = parseLrc(data.syncedLyrics);
+      if (lines.length) return lines;
     }
   }
   return null;

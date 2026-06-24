@@ -23,14 +23,14 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/queue` — view the queue (paged) · `/clear` — empty it',
       '`/move` `/remove` `/shuffle` — reorder / trim / shuffle',
       '`/loop` — track/queue loop · `/autoplay` — keep going when it ends',
-      '`/reroll` — fresh autoplay picks · `/dequeue` — drop the autoplay picks',
+      '`/reroll` — fresh autoplay picks · `/autoplay-dequeue` — drop the autoplay picks',
     ],
   },
   {
     name: '🎛️ Modes & sound',
     lines: [
-      '`/lofi` — continuous lofi radio · `/24-7` — stay in voice (until-empty/forever)',
-      '`/filter` — EQ / effects (session) · `/filter-save` — server-wide default',
+      '`/lofi` — continuous lofi playlist (looped) · `/24-7` — stay in voice (until-empty/forever)',
+      '`/filter` — EQ / effects incl. **vocal** clarity (add `save:true` for a server default)',
       '`/volume` — set the volume',
     ],
   },
@@ -40,7 +40,7 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/favorites` — your saved tracks · `/history` — recently played (paged)',
       '`/replay` `[position]` — replay a track from history (default: most recent)',
       '`/playlist` — save / load playlists · `/summon` — move the bot to your VC',
-      '`/settings` — DJ role & default volume · `/status` — live health stats',
+      '`/settings` — DJ role & default volume · `/status` — health · `/about` — the tech stack',
     ],
   },
   {

@@ -117,9 +117,10 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         await reply('❌ No previous track to go back to.');
         return;
       }
-      // Keep the current track so it plays again right after the previous one.
-      const current = player.queue.current;
-      if (current) await player.queue.add(current, 0);
+      // Play the previous track now. We deliberately do NOT re-queue the current
+      // track at the front: play() pushes it onto the previous stack anyway (so
+      // it's reachable by pressing back again), and re-adding it caused a
+      // duplicate when combined with /replay. No double now.
       await player.play({ clientTrack: previous });
       await reply(`⏮️ Playing the previous track — **${previous.info.title}**.`);
       return;

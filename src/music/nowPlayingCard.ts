@@ -321,7 +321,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   if (upNext && upNext.length > 0) {
     const list = upNext
       .slice(0, 3)
-      .map((title, i) => `\`${i + 1}.\` ${title}`)
+      .map((title, i) => `\`#${i + 1}\` ${title}`)
       .join('\n');
     const total = queueLength ?? upNext.length;
     const more = total > 3 ? `\n-# +${total - 3} more in queue` : '';

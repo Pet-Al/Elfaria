@@ -101,7 +101,12 @@ async function placePanel(
   }
   if (existing) {
     const oldTrack = player.get<Track | undefined>('npTrack');
-    if (oldTrack) await greyPanel(existing, oldTrack);
+    if (oldTrack) {
+      // A buried/superseded card keeps a working Replay + Favorite (for ~30 min)
+      // so EVERY track — not just the final one — stays favouritable after it goes.
+      await greyPanel(existing, oldTrack, true);
+      armPanelExpiry(existing);
+    }
   }
   return channel.send(payload).catch((err) => {
     logger.warn({ err }, 'failed to send now-playing panel');
@@ -190,7 +195,10 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       await settleLoopOnce(player, track.info.identifier); // disarm one-shot loops
       clearTimer(player);
       clearPauseTimer(player);
-      clearPanelExpiry(player.guildId); // a new track is live again
+      // If the panel we're about to reuse had an expiry armed (e.g. after a
+      // queue-end card), cancel it — this message is going live again.
+      const prevPanel = player.get<Message | undefined>('npMessage');
+      if (prevPanel) clearPanelExpiry(prevPanel.id);
       player.set('npFinished', false);
 
       // Fetch timed (synced) lyrics for the card — best-effort, off the hot path.
@@ -272,7 +280,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       ]);
       if (message) {
         player.set('npMessage', message);
-        armPanelExpiry(player.guildId, message); // grey Replay/Favorite after ~30 min
+        armPanelExpiry(message); // grey Replay/Favorite after ~30 min
       }
       // The final card's Replay/Favorite work standalone — no need to retire it.
       void forgetPanel(player.guildId);
@@ -330,7 +338,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       player.set('npTrack', undefined);
       if (message && track) {
         void greyPanel(message, track, true);
-        armPanelExpiry(player.guildId, message); // expire Replay/Favorite after ~30 min
+        armPanelExpiry(message); // expire Replay/Favorite after ~30 min
       }
     });
 }

@@ -196,6 +196,11 @@ export const config = {
     // AUTO_DEPLOY_COMMANDS=false to manage registration manually (e.g. when you
     // use the instant `npm run deploy:guild` dev path).
     autoDeploy: optional('AUTO_DEPLOY_COMMANDS', 'true') !== 'false',
+    // Nuclear de-dupe: when true, on boot the bot clears GUILD-scoped commands
+    // from every server it's in, leaving only the global set. Use this once if
+    // you have stubborn doubled commands from an old `deploy:guild`, then turn it
+    // back off (it costs one API call per guild). Default off.
+    clearGuildCommands: optional('CLEAR_ALL_GUILD_COMMANDS', 'false') === 'true',
   },
 
   // Analytics event pipeline (doc roadmap #3). Events are always written to the
