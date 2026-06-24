@@ -25,6 +25,27 @@ Resilience is layered, so a failure at one level is contained by the next:
 restart — software can't make itself *unkillable*, only resilient. The layers
 above cover "commands and song things."
 
+## User-facing errors & track failures
+
+Errors are handled where they happen and reported in terms the user can act on:
+
+- **Lyrics** distinguish three outcomes instead of one vague failure
+  (`commands/lyrics.ts`): **found** (shown), **not-found** ("LRCLIB may not have
+  this track" — a genuine miss, e.g. a remix/live cut), and **service error**
+  ("LRCLIB is unavailable, try again" — a 5xx/timeout/network fault). A 404 from
+  the exact-match endpoint is a miss, not an outage, so the message is always
+  accurate. The fetch is total (never throws); the command still wraps it.
+- **A track that errors** (`trackError`) auto-advances and posts a short
+  "…skipping to the next" notice.
+- **A track that stalls** (`trackStuck`, "the song just died") is surfaced with a
+  "stalled and was skipped" notice rather than hanging silently — lavalink-client
+  advances the queue; we make it visible.
+- **A flapping source** can't loop forever: `maxErrorsPerTime` (4 errors / 20s)
+  stops the player instead of retrying a broken stream endlessly.
+- Every command runs inside the instrumented try/catch, so any uncaught error
+  becomes a friendly ephemeral reply (`replyError`) and a logged event, never an
+  unhandled rejection.
+
 ## Distributed tracing (OpenTelemetry)
 
 Opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`).

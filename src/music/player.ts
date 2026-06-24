@@ -262,7 +262,18 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         'track error',
       );
       void send(client, player.textChannelId, {
-        content: `⚠️ Error playing **${track?.info?.title ?? 'a track'}**, skipping.`,
+        content: `⚠️ Error playing **${track?.info?.title ?? 'a track'}**, skipping to the next.`,
+      });
+    })
+    .on('trackStuck', (player, track) => {
+      // The track stalled (no audio frames). lavalink-client auto-advances; we
+      // surface it so a "the song just died" moment is visible, not silent.
+      logger.warn(
+        { guildId: player.guildId, track: track?.info?.title },
+        'track stuck — skipping to the next',
+      );
+      void send(client, player.textChannelId, {
+        content: `⚠️ **${track?.info?.title ?? 'A track'}** stalled and was skipped.`,
       });
     })
     .on('playerPaused', (player) => {

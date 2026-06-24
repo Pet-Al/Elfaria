@@ -33,37 +33,60 @@ function clean(input: string): string {
 
 type FetchOpts = { headers: Record<string, string>; signal: AbortSignal };
 
-/** Exact artist+track lookup. Returns the plain lyrics or null. */
-async function lookup(artist: string, title: string, opts: FetchOpts): Promise<string | null> {
-  if (!artist || !title) return null;
-  const res = await fetch(
-    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
-    opts,
-  );
-  if (!res.ok) return null;
-  const data = (await res.json()) as LrcEntry;
-  return data.plainLyrics?.trim() || null;
+/** One lookup's outcome: maybe lyrics, and whether the SERVICE (not the song) failed. */
+interface Attempt {
+  text?: string;
+  serviceError: boolean;
+}
+
+/**
+ * The aggregate result, so the caller can tell the user the RIGHT thing:
+ *  - found      → here are the lyrics
+ *  - not-found  → LRCLIB simply doesn't have this track (a 404/empty result)
+ *  - error      → LRCLIB itself was unreachable / 5xx / timed out
+ */
+type LyricsResult = { status: 'found'; text: string } | { status: 'not-found' } | { status: 'error' };
+
+/** Exact artist+track lookup. A 404 is a genuine miss; 5xx/network is a service error. */
+async function lookup(artist: string, title: string, opts: FetchOpts): Promise<Attempt> {
+  if (!artist || !title) return { serviceError: false };
+  try {
+    const res = await fetch(
+      `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
+      opts,
+    );
+    if (res.status === 404) return { serviceError: false }; // not found for this pair
+    if (!res.ok) return { serviceError: true };
+    const data = (await res.json()) as LrcEntry;
+    return { text: data.plainLyrics?.trim() || undefined, serviceError: false };
+  } catch {
+    return { serviceError: true }; // network / timeout / abort
+  }
 }
 
 /** Fuzzy search; take the first result that actually has lyrics. */
-async function searchLyrics(query: string, opts: FetchOpts): Promise<string | null> {
-  if (!query.trim()) return null;
-  const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`, opts);
-  if (!res.ok) return null;
-  const results = (await res.json()) as LrcEntry[];
-  return results.find((r) => r.plainLyrics?.trim())?.plainLyrics?.trim() || null;
+async function searchLyrics(query: string, opts: FetchOpts): Promise<Attempt> {
+  if (!query.trim()) return { serviceError: false };
+  try {
+    const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`, opts);
+    if (!res.ok) return { serviceError: true };
+    const results = (await res.json()) as LrcEntry[];
+    return { text: results.find((r) => r.plainLyrics?.trim())?.plainLyrics?.trim() || undefined, serviceError: false };
+  } catch {
+    return { serviceError: true };
+  }
 }
 
 /**
  * Best-effort lyrics for a track. Tries several (artist, title) shapes because
  * YouTube/SoundCloud titles are messy: the channel name is often not the artist
  * ("RickAstleyVEVO"), and the real artist frequently lives in the title itself
- * as "Artist - Song". We try the exact lookup for each shape, then fall back to
- * a couple of fuzzy searches.
+ * as "Artist - Song". Tracks whether any failure was the SERVICE vs a genuine
+ * miss, so the caller can give an accurate message. Never throws.
  */
-async function fetchLyrics(rawArtist: string, rawTitle: string): Promise<string | null> {
+async function fetchLyrics(rawArtist: string, rawTitle: string): Promise<LyricsResult> {
   const opts: FetchOpts = { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) };
-  const artist = clean(rawArtist);
+  const artist = clean(rawArtist.replace(/ - Topic$/i, ''));
   const title = clean(rawTitle);
 
   // Candidate (artist, title) pairs, most specific first.
@@ -72,13 +95,22 @@ async function fetchLyrics(rawArtist: string, rawTitle: string): Promise<string 
   const dash = rawTitle.split(/\s[-–—]\s/);
   if (dash.length >= 2) pairs.push([clean(dash[0]!), clean(dash.slice(1).join(' - '))]);
 
+  let serviceError = false;
+  const consider = (a: Attempt): string | undefined => {
+    serviceError ||= a.serviceError;
+    return a.text;
+  };
+
   for (const [a, t] of pairs) {
-    const hit = await lookup(a, t, opts);
-    if (hit) return hit;
+    const text = consider(await lookup(a, t, opts));
+    if (text) return { status: 'found', text };
+  }
+  for (const query of [`${title} ${artist}`, title]) {
+    const text = consider(await searchLyrics(query, opts));
+    if (text) return { status: 'found', text };
   }
 
-  // Fuzzy fallbacks: "title artist", then the cleaned title alone.
-  return (await searchLyrics(`${title} ${artist}`, opts)) ?? (await searchLyrics(title, opts));
+  return serviceError ? { status: 'error' } : { status: 'not-found' };
 }
 
 export const lyrics: Command = {
@@ -94,25 +126,39 @@ export const lyrics: Command = {
     }
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const artist = clean((current.info.author ?? '').replace(/ - Topic$/i, ''));
-    const title = clean(current.info.title ?? '');
 
+    let result: LyricsResult;
     try {
-      const text = await fetchLyrics(artist, title);
-      if (!text) {
-        await replyError(interaction, `Couldn't find lyrics for **${current.info.title}**.`);
-        return;
-      }
-      const body = text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
-      const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🎤 ${current.info.title}`.slice(0, 256))
-        .setDescription(body)
-        .setFooter({ text: 'Lyrics via LRCLIB' });
-      await interaction.editReply({ embeds: [embed] });
+      result = await fetchLyrics(current.info.author ?? '', current.info.title ?? '');
     } catch (err) {
-      logger.warn({ err, track: current.info.title }, 'lyrics fetch failed');
-      await replyError(interaction, 'The lyrics service is unavailable right now.');
+      // fetchLyrics is meant to never throw; treat an unexpected error as a
+      // service problem rather than letting the command fall over.
+      logger.warn({ err, track: current.info.title }, 'lyrics fetch threw unexpectedly');
+      result = { status: 'error' };
     }
+
+    if (result.status === 'error') {
+      await replyError(
+        interaction,
+        'The lyrics service (LRCLIB) is unavailable right now — please try again shortly.',
+      );
+      return;
+    }
+    if (result.status === 'not-found') {
+      await replyError(
+        interaction,
+        `No lyrics found for **${current.info.title}** — LRCLIB may not have this track ` +
+          '(common for remixes, live versions, and non-music audio).',
+      );
+      return;
+    }
+
+    const body = result.text.length > 4000 ? `${result.text.slice(0, 4000)}…` : result.text;
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`🎤 ${current.info.title}`.slice(0, 256))
+      .setDescription(body)
+      .setFooter({ text: 'Lyrics via LRCLIB' });
+    await interaction.editReply({ embeds: [embed] });
   },
 };
