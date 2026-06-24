@@ -52,10 +52,15 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   const client = interaction.client as ElfariaClient;
 
-  // Replay can run after the queue ended (no player yet), so handle it before the
-  // "nothing is playing" guard — it re-creates and reconnects the player if needed.
+  // Replay + favorite can run on a finished/expired card (no player yet), so
+  // handle them before the "nothing is playing" guard — they fall back to the
+  // last-played track. Replay re-creates and reconnects the player if needed.
   if (action === 'replay') {
     await handleReplay(interaction, client);
+    return;
+  }
+  if (action === 'favorite') {
+    await handleFavorite(interaction, client);
     return;
   }
 
@@ -77,26 +82,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       .filter(Boolean)
       .join('\n');
     await reply(body);
-    return;
-  }
-
-  // Favorite is personal — no voice/DJ gate, just needs the current track.
-  if (action === 'favorite') {
-    const current = player.queue.current;
-    if (!current?.info.uri) {
-      await reply('❌ Nothing favouritable is playing.');
-      return;
-    }
-    const state = await toggleFavorite(interaction.user.id, {
-      title: current.info.title,
-      uri: current.info.uri,
-      author: current.info.author,
-    });
-    await reply(
-      state === 'added'
-        ? `⭐ Saved **${current.info.title}** to your favorites — see \`/favorites\`.`
-        : `✖️ Removed **${current.info.title}** from your favorites.`,
-    );
     return;
   }
 
@@ -126,6 +111,19 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 
   switch (action) {
+    case 'back': {
+      const previous = await player.queue.shiftPrevious().catch(() => undefined);
+      if (!previous) {
+        await reply('❌ No previous track to go back to.');
+        return;
+      }
+      // Keep the current track so it plays again right after the previous one.
+      const current = player.queue.current;
+      if (current) await player.queue.add(current, 0);
+      await player.play({ clientTrack: previous });
+      await reply(`⏮️ Playing the previous track — **${previous.info.title}**.`);
+      return;
+    }
     case 'skip':
       if (!player.queue.current) {
         await reply('❌ Nothing is playing.');
@@ -149,6 +147,34 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     default:
       await reply('❌ Unknown control.');
   }
+}
+
+/**
+ * Toggle a personal favorite (customId np:favorite). Works on a live card (the
+ * current track) AND on a finished/expired card with no active player — in which
+ * case it falls back to the guild's last-played track. Personal, so no DJ gate.
+ */
+async function handleFavorite(
+  interaction: ButtonInteraction<'cached'>,
+  client: ElfariaClient,
+): Promise<void> {
+  const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  const current = client.lavalink.getPlayer(interaction.guildId)?.queue.current;
+  const track =
+    current?.info.uri != null
+      ? { title: current.info.title, uri: current.info.uri, author: current.info.author }
+      : await getLastPlayed(interaction.guildId);
+
+  if (!track?.uri) {
+    await reply('❌ Nothing to favourite.');
+    return;
+  }
+  const state = await toggleFavorite(interaction.user.id, track);
+  await reply(
+    state === 'added'
+      ? `⭐ Saved **${track.title}** to your favorites — see \`/favorites\`.`
+      : `✖️ Removed **${track.title}** from your favorites.`,
+  );
 }
 
 /**

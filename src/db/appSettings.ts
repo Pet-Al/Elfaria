@@ -41,3 +41,20 @@ export async function getBoolSetting(key: string, fallback = true): Promise<bool
   if (value === undefined) return fallback;
   return value !== 'false';
 }
+
+export async function deleteAppSetting(key: string): Promise<void> {
+  await db.run('DELETE FROM app_settings WHERE key = ?', [key]);
+}
+
+/** All settings whose key starts with `prefix` (e.g. the per-guild panel refs). */
+export async function listAppSettingsByPrefix(
+  prefix: string,
+): Promise<{ key: string; value: string }[]> {
+  const rows = await db.all<{ key: string; value: string | null }>(
+    'SELECT key, value FROM app_settings WHERE key LIKE ?',
+    [`${prefix}%`],
+  );
+  return rows
+    .filter((r): r is { key: string; value: string } => r.value != null && r.value !== '')
+    .map((r) => ({ key: r.key, value: r.value }));
+}

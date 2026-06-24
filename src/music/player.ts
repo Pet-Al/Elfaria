@@ -9,6 +9,7 @@ import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
+import { forgetPanel, rememberPanel } from './panelStore.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
@@ -210,6 +211,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         player.set('npMessage', message);
         player.set('npTrack', track);
         startProgressUpdates(player);
+        // Persist the live panel so it can be retired if this process dies before
+        // the panel is cleanly greyed (crash/OOM/kill) — see panelStore.ts.
+        void rememberPanel(player.guildId, message.channelId, message.id);
       }
     })
     .on('queueEnd', async (player) => {
@@ -231,6 +235,8 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         }),
       ]);
       if (message) player.set('npMessage', message);
+      // The final card's Replay/Favorite work standalone — no need to retire it.
+      void forgetPanel(player.guildId);
     })
     .on('trackError', (player, track, payload) => {
       logger.error(
@@ -256,6 +262,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     .on('playerDestroy', (player) => {
       clearTimer(player);
       clearPauseTimer(player);
+      // However the player goes away, the greyed card below is standalone-
+      // functional, so the saved ref is no longer needed.
+      void forgetPanel(player.guildId);
       // queueEnd already rendered the final card (grey + Replay). For every other
       // way the player goes away — stop, pause-timeout, empty channel, idle leave —
       // grey the live panel AND keep a Replay button, so the card always greys out

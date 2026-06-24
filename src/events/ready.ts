@@ -8,6 +8,7 @@ import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 import { loadRecommender } from '../ml/recommender.js';
+import { expireStalePanels } from '../music/panelStore.js';
 
 const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
 
@@ -98,6 +99,9 @@ export const ready: BotEvent<Events.ClientReady> = {
 
     // Load the trained recommender if an artifact exists (fail-soft → heuristics).
     void loadRecommender();
+
+    // Retire any now-playing panels left "live" by a previous (crashed) process.
+    void expireStalePanels(client);
 
     // GDPR retention: prune old history/events on boot and daily thereafter.
     void pruneOldData(config.retentionDays);

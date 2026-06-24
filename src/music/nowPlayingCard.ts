@@ -73,31 +73,35 @@ export function progressBar(positionMs: number, durationMs: number, isStream = f
 }
 
 /**
- * The five playback control buttons (handled in events/buttons.ts). `disabled`
- * greys them out — used to retire a previous song's panel so old messages stop
- * responding (Discord components never expire on their own).
+ * The five playback transport buttons (handled in events/buttons.ts). Back is on
+ * the left of play/pause. `disabled` greys them out — used to retire a previous
+ * song's panel so old messages stop responding (Discord components never expire
+ * on their own).
  */
 export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   const button = (id: string, emoji: string, style: ButtonStyle): ButtonBuilder =>
     new ButtonBuilder().setCustomId(id).setEmoji(emoji).setStyle(style).setDisabled(disabled);
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    button('np:back', '⏮️', ButtonStyle.Secondary),
     button('np:playpause', '⏯️', ButtonStyle.Secondary),
     button('np:skip', '⏭️', ButtonStyle.Secondary),
     button('np:stop', '⏹️', ButtonStyle.Danger),
-    button('np:shuffle', '🔀', ButtonStyle.Secondary),
     button('np:queue', '📜', ButtonStyle.Secondary),
   );
 }
 
-/** The ⭐ favorite button row (per-user toggle, customId np:favorite). */
-export function favoriteRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+/** The live card's utility row: ⭐ Favorite + 🔀 Shuffle. */
+export function utilityRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+  const button = (id: string, emoji: string, label: string): ButtonBuilder =>
     new ButtonBuilder()
-      .setCustomId('np:favorite')
-      .setEmoji('⭐')
-      .setLabel('Favorite')
+      .setCustomId(id)
+      .setEmoji(emoji)
+      .setLabel(label)
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(disabled),
+      .setDisabled(disabled);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    button('np:favorite', '⭐', 'Favorite'),
+    button('np:shuffle', '🔀', 'Shuffle'),
   );
 }
 
@@ -201,15 +205,23 @@ export function seekSelectRow(
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
-/** The ↩️ Replay button (customId np:replay). One-shot — disabled after a click. */
-export function replayRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
+/**
+ * A finished/expired card's live controls: ↩️ Replay + ⭐ Favorite. Both keep
+ * working with no active player — they re-resolve the last-played track — so an
+ * expired card still lets you replay or favorite the song that was on it.
+ */
+export function endedRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('np:replay')
       .setEmoji('↩️')
-      .setLabel('Replay last track')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(disabled),
+      .setLabel('Replay')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('np:favorite')
+      .setEmoji('⭐')
+      .setLabel('Favorite')
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -253,7 +265,8 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   // Meta line: artist • duration (or 🔴 Live for streams) • source badge.
   const meta = [`🎤 ${track.info.author || 'Unknown'}`];
   if (!withProgress) {
-    meta.push(track.info.isStream ? '🔴 Live' : `⏱️ ${formatDuration(track.info.duration)}`);
+    if (track.info.isStream) meta.push('🔴 Live');
+    else if (track.info.duration > 0) meta.push(`⏱️ ${formatDuration(track.info.duration)}`);
   }
   const badge = SOURCE_BADGES[track.info.sourceName ?? ''] ?? track.info.sourceName;
   if (badge) meta.push(badge);
@@ -311,7 +324,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(true));
     container.addActionRowComponents(controlRow(disabled));
     if (!disabled) {
-      container.addActionRowComponents(favoriteRow(false));
+      container.addActionRowComponents(utilityRow(false));
       container.addActionRowComponents(loopSelectRow(loopState, false));
       container.addActionRowComponents(volumeSelectRow(volume, false));
       // Seek is only meaningful for a track with a known, finite duration; it's
@@ -319,8 +332,8 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
       const seek = seekSelectRow(track, positionMs, false);
       if (seek) container.addActionRowComponents(seek);
     } else if (withReplay) {
-      // The final panel (queue finished): the only live control is Replay.
-      container.addActionRowComponents(replayRow(false));
+      // The final/expired panel: greyed transport, but Replay + Favorite stay live.
+      container.addActionRowComponents(endedRow());
     }
   }
 

@@ -3,9 +3,9 @@ import test from 'node:test';
 import type { Track } from 'lavalink-client';
 import {
   controlRow,
+  endedRow,
   nowPlayingCard,
   progressBar,
-  replayRow,
   seekSelectRow,
 } from './nowPlayingCard.js';
 
@@ -128,23 +128,33 @@ test('nowPlayingCard: buried panel greys controls and has NO replay', () => {
   assert.equal(json.components.filter((c) => c.type === ACTION_ROW).length, 1, 'only the greyed transport row');
 });
 
-test('nowPlayingCard: finished panel greys controls but keeps Replay active', () => {
+test('nowPlayingCard: finished panel greys transport but keeps Replay + Favorite active', () => {
   const json = nowPlayingCard(track, { disabled: true, withReplay: true }).toJSON();
-  assert.ok(JSON.stringify(json).includes('np:replay'), 'finished panel has a Replay button');
-  // Every button is disabled EXCEPT np:replay.
+  const blob = JSON.stringify(json);
+  assert.ok(blob.includes('np:replay'), 'finished panel has a Replay button');
+  assert.ok(blob.includes('np:favorite'), 'finished panel keeps a Favorite button');
+  // The only ACTIVE buttons are Replay and Favorite; everything else is greyed.
+  const live = new Set(['np:replay', 'np:favorite']);
   const rows = json.components.filter((c) => c.type === ACTION_ROW);
   for (const row of rows) {
     for (const c of row.components) {
       if (c.type !== 2) continue; // buttons only
-      const isReplay = 'custom_id' in c && c.custom_id === 'np:replay';
+      const id = 'custom_id' in c ? (c.custom_id as string) : '?';
       const isDisabled = 'disabled' in c && c.disabled === true;
-      assert.equal(isDisabled, !isReplay, `${'custom_id' in c ? c.custom_id : '?'} disabled state`);
+      assert.equal(isDisabled, !live.has(id), `${id} disabled state`);
     }
   }
 });
 
-test('replayRow exposes the np:replay button', () => {
-  assert.ok(JSON.stringify(replayRow().toJSON()).includes('np:replay'));
+test('endedRow exposes active Replay + Favorite buttons', () => {
+  const blob = JSON.stringify(endedRow().toJSON());
+  assert.ok(blob.includes('np:replay') && blob.includes('np:favorite'));
+});
+
+test('controlRow: has a back button to the left of play', () => {
+  const json = controlRow().toJSON();
+  const ids = json.components.map((c) => ('custom_id' in c ? c.custom_id : ''));
+  assert.deepEqual(ids, ['np:back', 'np:playpause', 'np:skip', 'np:stop', 'np:queue']);
 });
 
 test('controlRow: disabled greys out every button', () => {
