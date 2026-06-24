@@ -83,6 +83,11 @@ kubectl -n elfaria describe hpa lavalink
 - **`prometheus-alerts.yaml`** — a `PrometheusRule` (apply with `kubectl apply -f`)
   covering no-Lavalink-nodes, high command error rate, event-loop lag, and slow
   resolves. Set the `release` label to match your Prometheus.
+- **`prometheus-slo-rules.yaml`** — SLI recording rules + **multi-window
+  burn-rate** alerts for the command-success and playback-availability SLOs.
+  Targets, error budgets, and the budget policy are documented in
+  [`../../docs/SLO.md`](../../docs/SLO.md). Apply the same way; match the
+  `release` label.
 
 ## Until this is installed
 

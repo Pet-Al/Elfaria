@@ -1,0 +1,153 @@
+# SLO recording + multi-window burn-rate alerting for Elfaria (doc: docs/SLO.md).
+#
+# Two flagship SLOs, both alerted with the Google SRE "multi-window, multi-burn-
+# rate" method (a short AND a long window must BOTH be hot, so a brief blip
+# doesn't page but a sustained burn does):
+#
+#   1. Command success   — target 99.0% over 28d (budget 1.0%).
+#   2. Playback availability (≥1 Lavalink node) — target 99.9% over 28d (budget 0.1%).
+#
+# Plus a latency SLO (95% of commands < 1s) as a recording rule + one ticket alert.
+#
+# Burn-rate thresholds (× of the budget) and the budget they'd exhaust in 28d:
+#   14.4× over 1h+5m   → 2% of budget in 1h     → page (critical)
+#    6×  over 6h+30m   → 5% of budget in 6h     → page (critical)
+#    3×  over 24h+2h   → ~10% of budget in 1d   → ticket (warning)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: elfaria-slo
+  namespace: elfaria
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ── SLI recording rules ──────────────────────────────────────────────────
+    - name: elfaria-slo-sli
+      interval: 30s
+      rules:
+        # Command error ratio (1 - availability SLI) over each burn-rate window.
+        - record: elfaria:command_error:ratio_rate5m
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[5m]))
+            / clamp_min(sum(rate(elfaria_commands_total[5m])), 1)
+        - record: elfaria:command_error:ratio_rate30m
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[30m]))
+            / clamp_min(sum(rate(elfaria_commands_total[30m])), 1)
+        - record: elfaria:command_error:ratio_rate1h
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[1h]))
+            / clamp_min(sum(rate(elfaria_commands_total[1h])), 1)
+        - record: elfaria:command_error:ratio_rate2h
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[2h]))
+            / clamp_min(sum(rate(elfaria_commands_total[2h])), 1)
+        - record: elfaria:command_error:ratio_rate6h
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[6h]))
+            / clamp_min(sum(rate(elfaria_commands_total[6h])), 1)
+        - record: elfaria:command_error:ratio_rate1d
+          expr: |
+            sum(rate(elfaria_commands_total{status="error"}[1d]))
+            / clamp_min(sum(rate(elfaria_commands_total[1d])), 1)
+
+        # Playback unavailability (fraction of time with 0 connected nodes).
+        - record: elfaria:playback_unavailable:ratio_rate5m
+          expr: 1 - avg_over_time((elfaria_lavalink_nodes_connected > bool 0)[5m:30s])
+        - record: elfaria:playback_unavailable:ratio_rate1h
+          expr: 1 - avg_over_time((elfaria_lavalink_nodes_connected > bool 0)[1h:30s])
+        - record: elfaria:playback_unavailable:ratio_rate30m
+          expr: 1 - avg_over_time((elfaria_lavalink_nodes_connected > bool 0)[30m:30s])
+        - record: elfaria:playback_unavailable:ratio_rate6h
+          expr: 1 - avg_over_time((elfaria_lavalink_nodes_connected > bool 0)[6h:1m])
+
+        # Command latency SLI: fraction served in < 1s (the "good" events).
+        - record: elfaria:command_latency_fast:ratio_rate1h
+          expr: |
+            sum(rate(elfaria_command_duration_seconds_bucket{le="1"}[1h]))
+            / clamp_min(sum(rate(elfaria_command_duration_seconds_count[1h])), 1)
+
+    # ── Command-success burn-rate alerts (budget = 1.0% = 0.01) ───────────────
+    - name: elfaria-slo-command-burn
+      rules:
+        - alert: ElfariaCommandBudgetFastBurn
+          expr: |
+            elfaria:command_error:ratio_rate1h > (14.4 * 0.01)
+            and elfaria:command_error:ratio_rate5m > (14.4 * 0.01)
+          for: 2m
+          labels:
+            severity: critical
+            slo: command-success
+          annotations:
+            summary: Command SLO fast burn (14.4×)
+            description: >-
+              Errors are burning the 99% command-success budget 14.4× too fast
+              (1h & 5m windows). At this rate ~2% of the 28d budget is gone in 1h.
+        - alert: ElfariaCommandBudgetMidBurn
+          expr: |
+            elfaria:command_error:ratio_rate6h > (6 * 0.01)
+            and elfaria:command_error:ratio_rate30m > (6 * 0.01)
+          for: 5m
+          labels:
+            severity: critical
+            slo: command-success
+          annotations:
+            summary: Command SLO burn (6×)
+            description: >-
+              Command-success budget burning 6× too fast (6h & 30m windows).
+        - alert: ElfariaCommandBudgetSlowBurn
+          expr: |
+            elfaria:command_error:ratio_rate1d > (3 * 0.01)
+            and elfaria:command_error:ratio_rate2h > (3 * 0.01)
+          for: 15m
+          labels:
+            severity: warning
+            slo: command-success
+          annotations:
+            summary: Command SLO slow burn (3×)
+            description: >-
+              Command-success budget burning 3× too fast (1d & 2h windows) — open
+              a ticket; the budget will exhaust before month-end if it continues.
+
+    # ── Playback-availability burn-rate alerts (budget = 0.1% = 0.001) ────────
+    - name: elfaria-slo-playback-burn
+      rules:
+        - alert: ElfariaPlaybackBudgetFastBurn
+          expr: |
+            elfaria:playback_unavailable:ratio_rate1h > (14.4 * 0.001)
+            and elfaria:playback_unavailable:ratio_rate5m > (14.4 * 0.001)
+          for: 2m
+          labels:
+            severity: critical
+            slo: playback-availability
+          annotations:
+            summary: Playback SLO fast burn (14.4×)
+            description: >-
+              No Lavalink nodes available often enough to burn the 99.9% playback
+              budget 14.4× too fast (1h & 5m windows).
+        - alert: ElfariaPlaybackBudgetMidBurn
+          expr: |
+            elfaria:playback_unavailable:ratio_rate6h > (6 * 0.001)
+            and elfaria:playback_unavailable:ratio_rate30m > (6 * 0.001)
+          for: 5m
+          labels:
+            severity: warning
+            slo: playback-availability
+          annotations:
+            summary: Playback SLO burn (6×)
+            description: Playback-availability budget burning 6× too fast (6h & 30m).
+
+    # ── Latency SLO (95% of commands < 1s) ────────────────────────────────────
+    - name: elfaria-slo-latency
+      rules:
+        - alert: ElfariaCommandLatencySLO
+          expr: elfaria:command_latency_fast:ratio_rate1h < 0.95
+          for: 15m
+          labels:
+            severity: warning
+            slo: command-latency
+          annotations:
+            summary: Command latency SLO at risk
+            description: >-
+              Fewer than 95% of commands completed in under 1s over the last hour.
