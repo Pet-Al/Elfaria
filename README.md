@@ -26,6 +26,11 @@ not the whole bot.
 > storage + GDPR) is in **[docs/DATA.md](./docs/DATA.md)**; service levels and
 > error budgets in **[docs/SLO.md](./docs/SLO.md)**; multi-pod sharding + canary
 > rollouts in **[docs/SCALING_SHARDING.md](./docs/SCALING_SHARDING.md)**.
+>
+> **New here?** The **[user & operator guide](./docs/GUIDE.md)** is the friendly
+> walkthrough; the **[full reference](./docs/REFERENCE.md)** (every command,
+> module, env var, table, metric) is the discord.js-style index; recent changes
+> are in **[CHANGELOG.md](./CHANGELOG.md)**.
 
 ## Features
 
