@@ -32,6 +32,12 @@ streaming) is per-player and CPU-bound — exactly the kind of load an HPA handl
 well. The bot, gateway, and data tiers are deliberately *not* autoscaled (see
 "Honest caveats").
 
+**Scaling the gateway tier:** the default `bot-deployment.yaml` is one process
+(correct below ~2,500 guilds). To run the bot across multiple pods with
+coordinated shard ranges — plus a canary/partition rollout playbook — use
+`bot-statefulset.yaml` instead and follow
+[`../docs/SCALING_SHARDING.md`](../docs/SCALING_SHARDING.md).
+
 ## How the dynamic scaling actually works
 
 1. **Stable identities.** Lavalink runs as a `StatefulSet` behind a *headless*

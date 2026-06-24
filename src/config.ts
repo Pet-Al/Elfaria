@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { resolveShardAssignment } from './lib/shardRange.js';
 
 /**
  * Centralised, validated configuration.
@@ -167,6 +168,11 @@ export const config = {
   sharding: {
     enabled: ['on', 'auto', 'true', '1'].includes(shardingMode),
     totalShards: optional('SHARD_COUNT', 'auto'),
+    // Multi-pod sharding (doc roadmap): each pod owns a coordinated, disjoint
+    // shard range. Active when TOTAL_SHARDS is set (+ SHARDS_PER_POD and the
+    // StatefulSet's POD_NAME, or an explicit SHARD_IDS). null = single process
+    // / the ShardingManager path. See docs/SCALING_SHARDING.md.
+    multiPod: resolveShardAssignment(process.env),
   },
 
   commands: {

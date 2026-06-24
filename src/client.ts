@@ -32,8 +32,16 @@ export class ElfariaClient extends Client {
   public readonly lavalink: LavalinkManager;
 
   constructor() {
+    // Multi-pod sharding: when this pod has a coordinated shard assignment, tell
+    // discord.js exactly which shard ids to open and the global shardCount, so
+    // pods own disjoint ranges of the same logical bot (doc roadmap). Absent →
+    // a single process (or the ShardingManager path, which injects via env).
+    const assignment = config.sharding.multiPod;
     super({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+      ...(assignment
+        ? { shards: assignment.shardIds, shardCount: assignment.totalShards }
+        : {}),
     });
 
     this.lavalink = new LavalinkManager({

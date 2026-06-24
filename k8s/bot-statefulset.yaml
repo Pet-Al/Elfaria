@@ -1,0 +1,139 @@
+# Multi-pod sharded bot (doc roadmap, "multi-pod bot sharding + canary").
+#
+# Use this INSTEAD of bot-deployment.yaml once one process can't carry every
+# shard (~2,500 guilds / shard limits). A StatefulSet gives each pod a stable
+# ordinal (elfaria-bot-0, -1, …); the entrypoint reads POD_NAME + SHARDS_PER_POD
+# + TOTAL_SHARDS and opens exactly its slice of shard ids (src/lib/shardRange.ts).
+# Pods own DISJOINT ranges, so there's never a double gateway connection.
+#
+# Sizing: replicas × SHARDS_PER_POD MUST cover TOTAL_SHARDS. Example below:
+#   replicas: 4, SHARDS_PER_POD: 3, TOTAL_SHARDS: 12  → 0-2 | 3-5 | 6-8 | 9-11.
+#
+# Canary / progressive rollout: this uses `updateStrategy: RollingUpdate` with a
+# `partition`. With partition: N, only pods with ordinal >= N take a new image —
+# so set the image on the highest-ordinal pod first (the canary), watch its SLO
+# burn (docs/SLO.md), then lower the partition to roll the rest. See
+# docs/SCALING_SHARDING.md for the full canary + blue-green playbook.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elfaria-bot
+  namespace: elfaria
+spec:
+  serviceName: elfaria-bot-hl
+  replicas: 4
+  podManagementPolicy: Parallel # shards are independent; no need to start in order
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Start at the pod count so a normal apply touches nothing; lower it to
+      # promote a rollout one pod (shard range) at a time. Set to the canary's
+      # ordinal first (e.g. 3), verify, then 0 to finish.
+      partition: 4
+  selector:
+    matchLabels:
+      app: elfaria-bot
+  template:
+    metadata:
+      labels:
+        app: elfaria-bot
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9090'
+        prometheus.io/path: /metrics
+    spec:
+      # Each shard holds live voice sessions; give in-flight work a moment on
+      # rollout/scale-in (matches the graceful-shutdown handler in src/index.ts).
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bot
+          image: ghcr.io/pet-al/elfaria:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ['ALL']
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            # ── Multi-pod shard coordination ──────────────────────────────────
+            # POD_NAME → ordinal; the entrypoint derives this pod's shard ids.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TOTAL_SHARDS
+              value: '12'
+            - name: SHARDS_PER_POD
+              value: '3'
+            # ── Credentials & connections (same as the single-pod Deployment) ─
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: DISCORD_TOKEN
+            - name: DISCORD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: DISCORD_CLIENT_ID
+            - name: LAVALINK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: LAVALINK_PASSWORD
+            - name: SPOTIFY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: SPOTIFY_CLIENT_ID
+            - name: SPOTIFY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: SPOTIFY_CLIENT_SECRET
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elfaria-secrets
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: 'postgres://elfaria:$(POSTGRES_PASSWORD)@postgres:5432/elfaria'
+            # Shared search cache across pods so shards don't each re-resolve the
+            # same query — recommended once you run more than one pod.
+            - name: REDIS_URL
+              value: 'redis://redis:6379'
+            - name: LAVALINK_NODES
+              value: >-
+                [{"id":"lavalink-0","host":"lavalink-0.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-1","host":"lavalink-1.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-2","host":"lavalink-2.lavalink-hl.elfaria.svc.cluster.local","port":2333},
+                {"id":"lavalink-3","host":"lavalink-3.lavalink-hl.elfaria.svc.cluster.local","port":2333}]
+          resources:
+            requests:
+              cpu: '150m'
+              memory: '256Mi'
+            limits:
+              cpu: '600m'
+              memory: '512Mi'
+---
+# Headless service backing the StatefulSet's stable pod DNS (elfaria-bot-0.…).
+apiVersion: v1
+kind: Service
+metadata:
+  name: elfaria-bot-hl
+  namespace: elfaria
+  labels:
+    app: elfaria-bot
+spec:
+  clusterIP: None
+  selector:
+    app: elfaria-bot
+  ports:
+    - name: metrics
+      port: 9090

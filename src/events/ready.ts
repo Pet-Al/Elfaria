@@ -17,9 +17,16 @@ const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
  * logs and continues — it must never block the bot coming online). Under
  * sharding only shard 0 runs it, so the global PUT happens once, not per shard.
  */
+/** Does this process own shard 0? (so cluster-wide one-shot work runs once). */
+function ownsShardZero(client: Client<true>): boolean {
+  if (client.shard) return client.shard.ids.includes(0); // ShardingManager path
+  if (config.sharding.multiPod) return config.sharding.multiPod.shardIds.includes(0);
+  return true; // single process
+}
+
 async function autoDeployCommands(client: Client<true>): Promise<void> {
   if (!config.commands.autoDeploy) return;
-  if (client.shard && !client.shard.ids.includes(0)) return;
+  if (!ownsShardZero(client)) return;
   try {
     const result = await syncCommands('global');
     logger.info(result, 'auto-registered slash commands on boot (GLOBAL)');
