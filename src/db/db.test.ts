@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { db } from './driver.js';
 import { listFavorites, toggleFavorite } from './favorites.js';
 import { getGuildSettings, updateGuildSettings } from './guilds.js';
-import { getHistory, getLastPlayed, recordPlay } from './history.js';
+import { countHistory, getHistory, getHistoryPage, getLastPlayed, recordPlay } from './history.js';
 import { closeDatabase, initDatabase } from './index.js';
 import { deletePlaylist, listPlaylists, loadPlaylistTracks, savePlaylist } from './playlists.js';
 
@@ -50,6 +50,24 @@ test('play history dedupes (newest first) and tracks the last played', async () 
     ['A', 'B'],
   );
   assert.equal((await getLastPlayed('g-hist'))?.title, 'A');
+});
+
+test('history pagination: distinct count + per-page slices (newest first)', async () => {
+  for (const n of [1, 2, 3, 4, 5]) {
+    await recordPlay('g-page', { title: `T${n}`, uri: `u:${n}`, author: 'a' });
+  }
+  await recordPlay('g-page', { title: 'T1', uri: 'u:1', author: 'a' }); // replay T1 → newest
+
+  assert.equal(await countHistory('g-page'), 5, '5 distinct tracks');
+  // T1 was just replayed so it's newest; page 0 (2 per page) is [T1, T5].
+  assert.deepEqual(
+    (await getHistoryPage('g-page', 0, 2)).map((e) => e.title),
+    ['T1', 'T5'],
+  );
+  assert.deepEqual(
+    (await getHistoryPage('g-page', 1, 2)).map((e) => e.title),
+    ['T4', 'T3'],
+  );
 });
 
 test('favorites toggle on/off and list newest-first', async () => {

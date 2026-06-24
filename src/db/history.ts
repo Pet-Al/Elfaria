@@ -29,13 +29,42 @@ export async function recordPlay(
 /** The most recent distinct tracks played in a guild, newest first. */
 export async function getHistory(guildId: string, limit = 10): Promise<HistoryEntry[]> {
   const rows = await db.all<{ title: string; uri: string; author: string | null }>(
-    `SELECT title, uri, author, MAX(played_at) AS last_played
+    `SELECT title, uri, author, MAX(played_at) AS last_played, MAX(id) AS last_id
      FROM play_history
      WHERE guild_id = ?
      GROUP BY uri, title, author
-     ORDER BY last_played DESC
+     ORDER BY last_played DESC, last_id DESC
      LIMIT ?`,
     [guildId, limit],
+  );
+  return rows.map((r) => ({ title: r.title, uri: r.uri, author: r.author }));
+}
+
+/** Count of DISTINCT tracks in a guild's history (for paging). */
+export async function countHistory(guildId: string): Promise<number> {
+  const row = await db.get<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM (
+       SELECT 1 FROM play_history WHERE guild_id = ? GROUP BY uri, title, author
+     ) distinct_tracks`,
+    [guildId],
+  );
+  return row?.c ?? 0;
+}
+
+/** One page of distinct history (newest first). 0-based page index. */
+export async function getHistoryPage(
+  guildId: string,
+  page: number,
+  perPage = 10,
+): Promise<HistoryEntry[]> {
+  const rows = await db.all<{ title: string; uri: string; author: string | null }>(
+    `SELECT title, uri, author, MAX(played_at) AS last_played, MAX(id) AS last_id
+     FROM play_history
+     WHERE guild_id = ?
+     GROUP BY uri, title, author
+     ORDER BY last_played DESC, last_id DESC
+     LIMIT ? OFFSET ?`,
+    [guildId, perPage, Math.max(0, page) * perPage],
   );
   return rows.map((r) => ({ title: r.title, uri: r.uri, author: r.author }));
 }

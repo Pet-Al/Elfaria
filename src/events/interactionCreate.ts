@@ -5,6 +5,7 @@ import { logger } from '../lib/logger.js';
 import { instrumentCommand } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 import { handleButton, handleSelectMenu } from './buttons.js';
+import { handleHistoryButton, handleHistorySelect } from './historyComponents.js';
 
 /**
  * The command router (doc §2). A single interactionCreate handler looks up the
@@ -59,20 +60,22 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
       return;
     }
 
-    // Now-playing control panel buttons.
+    // Component interactions, routed by custom-id prefix:
+    //   np:*           → now-playing panel    hist:* / replay:* → history & replay
     if (interaction.isButton()) {
       try {
-        await handleButton(interaction);
+        if (interaction.customId.startsWith('np:')) await handleButton(interaction);
+        else if (/^(hist|replay):/.test(interaction.customId)) await handleHistoryButton(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'button handler failed');
       }
       return;
     }
 
-    // Now-playing volume dropdown.
     if (interaction.isStringSelectMenu()) {
       try {
-        await handleSelectMenu(interaction);
+        if (interaction.customId.startsWith('np:')) await handleSelectMenu(interaction);
+        else if (/^(hist|replay):/.test(interaction.customId)) await handleHistorySelect(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'select handler failed');
       }
