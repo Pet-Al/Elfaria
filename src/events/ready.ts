@@ -3,7 +3,7 @@ import { pruneOldData } from '../analytics/events.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { startApiServer } from '../lib/api.js';
-import { syncCommands } from '../lib/commandSync.js';
+import { reconcileGlobalCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
@@ -28,8 +28,12 @@ async function autoDeployCommands(client: Client<true>): Promise<void> {
   if (!config.commands.autoDeploy) return;
   if (!ownsShardZero(client)) return;
   try {
-    const result = await syncCommands('global');
-    logger.info(result, 'auto-registered slash commands on boot (GLOBAL)');
+    const result = await reconcileGlobalCommands();
+    if (result.unchanged) {
+      logger.info('slash commands already up to date (GLOBAL) — no re-deploy needed');
+    } else {
+      logger.info(result, 'reconciled slash commands on boot (GLOBAL; cleared any guild dupes)');
+    }
   } catch (err) {
     logger.error({ err }, 'auto command registration failed — continuing (try `npm run deploy`)');
   }

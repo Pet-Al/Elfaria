@@ -207,6 +207,12 @@ export const config = {
     port: intOption('API_PORT', 8080),
   },
 
+  // Bot owner — may use the owner-only /admin toggles (retention, /forget-me).
+  // Defaults to the project owner's Discord user id; override with OWNER_ID.
+  owner: {
+    id: optional('OWNER_ID', '582699270369574912'),
+  },
+
   // GDPR data retention: play_history + events older than this are pruned daily.
   retentionDays: intOption('DATA_RETENTION_DAYS', 90),
 

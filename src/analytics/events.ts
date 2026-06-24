@@ -1,3 +1,4 @@
+import { SettingKeys, getBoolSetting } from '../db/appSettings.js';
 import { db } from '../db/driver.js';
 import { logger } from '../lib/logger.js';
 import { publishEvent } from './kafka.js';
@@ -50,6 +51,11 @@ export function recordEvent(event: AnalyticsEvent): void {
 /** GDPR data retention: drop play history + events older than `days`. */
 export async function pruneOldData(days: number): Promise<void> {
   if (days <= 0) return;
+  // Owner can disable the deletion entirely (/admin retention off).
+  if (!(await getBoolSetting(SettingKeys.retentionEnabled, true).catch(() => true))) {
+    logger.info('retention prune skipped — disabled by owner (/admin retention off)');
+    return;
+  }
   const cutoff = Math.floor(Date.now() / 1000) - days * 86_400;
   try {
     await db.run('DELETE FROM events WHERE created_at < ?', [cutoff]);

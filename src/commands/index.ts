@@ -1,5 +1,6 @@
 import type { ElfariaClient } from '../client.js';
 import type { Command } from '../lib/types.js';
+import { admin } from './admin.js';
 import { autoplay } from './autoplay.js';
 import { clear } from './clear.js';
 import { favorites } from './favorites.js';
@@ -60,6 +61,7 @@ export const commands: Command[] = [
   favorites,
   lyrics,
   forgetme,
+  admin,
 ];
 
 /** Populate the client's command Collection used by the router. */

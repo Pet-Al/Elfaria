@@ -21,8 +21,21 @@ import { logger } from './src/lib/logger.js';
  *   --global  Explicit alias for the default global behaviour.
  *   --list    Print what's currently registered in each scope (handy for
  *             diagnosing duplicates / which guild your commands are in).
+ *   --clear-guild <id>   Remove ALL commands from one guild. Use this to kill
+ *             duplicates left behind by an old `deploy:guild` after you removed
+ *             DISCORD_GUILD_ID from the env (the bot can only auto-clear the
+ *             guild it still knows about).
  */
 type RegisteredCommand = { name: string };
+
+async function clearGuild(guildId: string): Promise<void> {
+  const rest = new REST().setToken(config.discord.token);
+  const existing = (await rest.get(
+    Routes.applicationGuildCommands(config.discord.clientId, guildId),
+  )) as RegisteredCommand[];
+  await rest.put(Routes.applicationGuildCommands(config.discord.clientId, guildId), { body: [] });
+  logger.info({ guildId, cleared: existing.length }, 'cleared all commands from guild');
+}
 
 async function list(): Promise<void> {
   const rest = new REST().setToken(config.discord.token);
@@ -72,9 +85,16 @@ async function register(scope: CommandScope): Promise<void> {
 
 // GLOBAL is the default (commands appear in every server). Pass --guild to
 // register instantly to DISCORD_GUILD_ID instead — the fast dev/iteration path.
+const clearGuildIdx = process.argv.indexOf('--clear-guild');
 const run = process.argv.includes('--list')
   ? list
-  : () => register(process.argv.includes('--guild') ? 'guild' : 'global');
+  : clearGuildIdx !== -1
+    ? () => {
+        const id = process.argv[clearGuildIdx + 1];
+        if (!id) throw new Error('--clear-guild requires a guild id, e.g. --clear-guild 123456789');
+        return clearGuild(id);
+      }
+    : () => register(process.argv.includes('--guild') ? 'guild' : 'global');
 run()
   .then(() => {
     // One-shot script: force a clean exit. Importing the command modules pulls
