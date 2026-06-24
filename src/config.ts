@@ -198,6 +198,13 @@ export const config = {
   // GDPR data retention: play_history + events older than this are pruned daily.
   retentionDays: intOption('DATA_RETENTION_DAYS', 90),
 
+  // Trained recommender (doc roadmap #6). The offline trainer (`npm run train`)
+  // writes an item2vec embeddings artifact here; the bot loads it on boot and
+  // autoplay uses it ahead of the heuristics. Optional — absent = heuristics only.
+  recommender: {
+    modelPath: optional('RECOMMENDER_MODEL_PATH', './data/recommender.json'),
+  },
+
   // Prometheus metrics (doc §10). On by default on its own port; a scraper hits
   // GET /metrics. Set METRICS_ENABLED=false to turn the endpoint off entirely.
   metrics: {

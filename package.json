@@ -14,6 +14,7 @@
     "deploy:global": "tsx deploy-commands.ts --global",
     "deploy:guild": "tsx deploy-commands.ts --guild",
     "deploy:list": "tsx deploy-commands.ts --list",
+    "train": "tsx scripts/train-recommender.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

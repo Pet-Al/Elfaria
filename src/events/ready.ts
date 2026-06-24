@@ -7,6 +7,7 @@ import { syncCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
+import { loadRecommender } from '../ml/recommender.js';
 
 const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
 
@@ -83,6 +84,9 @@ export const ready: BotEvent<Events.ClientReady> = {
     await autoDeployCommands(client);
     startMetricsServer(elfaria);
     startApiServer(elfaria);
+
+    // Load the trained recommender if an artifact exists (fail-soft → heuristics).
+    void loadRecommender();
 
     // GDPR retention: prune old history/events on boot and daily thereafter.
     void pruneOldData(config.retentionDays);

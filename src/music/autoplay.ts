@@ -2,6 +2,7 @@ import type { Player, SearchResult, Track } from 'lavalink-client';
 import { coPlayedAfter } from '../analytics/recommend.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
+import { recommendTracks } from '../ml/recommender.js';
 
 /**
  * Autoplay (doc roadmap). When the queue runs dry, if autoplay is enabled for
@@ -61,8 +62,20 @@ async function seedVideoId(player: Player, track: Track): Promise<string | null>
 async function gatherCandidates(player: Player, seed: Track): Promise<Track[]> {
   const pool: Track[] = [];
 
-  // 1. Learned: tracks this guild most often plays after the seed (co-play CF).
   if (seed.info.uri) {
+    // 1. Trained: item2vec nearest-neighbours from the offline-trained embeddings
+    //    (most personalised). No-op when no model is loaded (cold start).
+    try {
+      for (const rec of recommendTracks(seed.info.uri, 10)) {
+        const found = (await player.search({ query: rec.uri }, seed.requester)) as SearchResult;
+        if (found.tracks[0]) pool.push(found.tracks[0]);
+      }
+    } catch (err) {
+      logger.debug({ err, guildId: player.guildId }, 'trained recommender lookup failed');
+    }
+
+    // 2. Learned heuristic: tracks this guild most often plays after the seed
+    //    (co-play CF) — works before a model has been trained.
     try {
       const suggestions = await coPlayedAfter(player.guildId, seed.info.uri, 10);
       for (const s of suggestions) {
@@ -74,7 +87,7 @@ async function gatherCandidates(player: Player, seed: Track): Promise<Track[]> {
     }
   }
 
-  // 2. Heuristic: YouTube's mix/radio (genre-aware) for any source.
+  // 3. Heuristic fallback: YouTube's mix/radio (genre-aware) for any source.
   const videoId = await seedVideoId(player, seed);
   const mix = (await player.search(
     videoId
