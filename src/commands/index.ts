@@ -20,6 +20,7 @@ import { ping } from './ping.js';
 import { play } from './play.js';
 import { playlist } from './playlist.js';
 import { queue } from './queue.js';
+import { recommend } from './recommend.js';
 import { remove } from './remove.js';
 import { replay } from './replay.js';
 import { reroll } from './reroll.js';
@@ -29,6 +30,7 @@ import { settings } from './settings.js';
 import { shuffle } from './shuffle.js';
 import { skip } from './skip.js';
 import { skipto } from './skipto.js';
+import { sponsorblock } from './sponsorblock.js';
 import { status } from './status.js';
 import { stop } from './stop.js';
 import { summon } from './summon.js';
@@ -60,11 +62,13 @@ export const commands: Command[] = [
   settings,
   playlist,
   autoplay,
+  recommend,
   reroll,
   dequeue,
   lofi,
   twentyfourseven,
   filter,
+  sponsorblock,
   status,
   history,
   replay,

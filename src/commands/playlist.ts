@@ -34,7 +34,11 @@ export const playlist: Command = {
         .setName('load')
         .setDescription('Load one of your playlists into the queue.')
         .addStringOption((opt) =>
-          opt.setName('name').setDescription('The playlist to load.').setRequired(true),
+          opt
+            .setName('name')
+            .setDescription('The playlist to load.')
+            .setRequired(true)
+            .setAutocomplete(true),
         ),
     )
     .addSubcommand((sub) => sub.setName('list').setDescription('List your saved playlists.'))
@@ -43,9 +47,35 @@ export const playlist: Command = {
         .setName('delete')
         .setDescription('Delete one of your playlists.')
         .addStringOption((opt) =>
-          opt.setName('name').setDescription('The playlist to delete.').setRequired(true),
+          opt
+            .setName('name')
+            .setDescription('The playlist to delete.')
+            .setRequired(true)
+            .setAutocomplete(true),
         ),
     ),
+
+  // Typeahead for the `name` option: suggest the caller's own playlists (so
+  // load/delete don't require typing an exact name, and save can pick an
+  // existing one to overwrite). Save's name stays free-form — you can type a
+  // brand-new name or accept a suggestion.
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name !== 'name' || !interaction.guildId) {
+      await interaction.respond([]);
+      return;
+    }
+    const playlists = await listPlaylists(interaction.guildId, interaction.user.id);
+    const query = focused.value.toLowerCase();
+    const choices = playlists
+      .filter((p) => p.name.toLowerCase().includes(query))
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.name} (${p.trackCount} track${p.trackCount === 1 ? '' : 's'})`.slice(0, 100),
+        value: p.name.slice(0, 100),
+      }));
+    await interaction.respond(choices);
+  },
 
   async execute(interaction) {
     const guildId = interaction.guildId!;

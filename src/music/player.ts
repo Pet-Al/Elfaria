@@ -11,7 +11,13 @@ import { logger } from '../lib/logger.js';
 import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
-import { armPanelExpiry, clearPanelExpiry, forgetPanel, rememberPanel } from './panelStore.js';
+import {
+  armPanelExpiry,
+  clearPanelExpiry,
+  forgetPanel,
+  rememberCardTrack,
+  rememberPanel,
+} from './panelStore.js';
 import { dbQueueStore } from './queueStore.js';
 
 /**
@@ -30,8 +36,9 @@ import { dbQueueStore } from './queueStore.js';
 
 /** Live-progress refresh interval (0 disables live updates — see config). */
 const REFRESH_MS = config.music.nowPlayingRefreshMs;
-/** Minimum spacing between panel edits, so bursts can't flood a channel. */
-const MIN_EDIT_INTERVAL_MS = 3_000;
+/** Minimum spacing between panel edits, so forced-refresh bursts can't flood a
+ * channel. Kept just under 1s so a per-second progress/lyrics tick isn't dropped. */
+const MIN_EDIT_INTERVAL_MS = 900;
 
 const V2 = { flags: MessageFlags.IsComponentsV2 } as const;
 
@@ -47,6 +54,18 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
     lyricLine:
       synced && positionMs !== undefined ? (currentLine(synced, positionMs) ?? undefined) : undefined,
   };
+}
+
+/** Map a card message to the track it shows, so its Favorite button targets THAT
+ * track (not whatever is playing now). No-op when the track has no URL. */
+function rememberCard(message: Message, track: Track): void {
+  if (track.info.uri) {
+    rememberCardTrack(message.id, {
+      title: track.info.title,
+      uri: track.info.uri,
+      author: track.info.author,
+    });
+  }
 }
 
 function clearTimer(player: Player): void {
@@ -237,6 +256,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       if (message) {
         player.set('npMessage', message);
         player.set('npTrack', track);
+        rememberCard(message, track);
         startProgressUpdates(player);
         // Persist the live panel so it can be retired if this process dies before
         // the panel is cleanly greyed (crash/OOM/kill) — see panelStore.ts.
@@ -280,6 +300,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       ]);
       if (message) {
         player.set('npMessage', message);
+        rememberCard(message, track);
         armPanelExpiry(message); // grey Replay/Favorite after ~30 min
       }
       // The final card's Replay/Favorite work standalone — no need to retire it.
@@ -318,6 +339,13 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     .on('playerDisconnect', (player) => {
       logger.info({ guildId: player.guildId }, 'player disconnected from voice');
     })
+    .on('SegmentSkipped', (player, _track, payload) => {
+      // SponsorBlock skipped a non-music segment — surface it for observability.
+      logger.debug(
+        { guildId: player.guildId, category: payload.segment?.category },
+        'sponsorblock segment skipped',
+      );
+    })
     .on('playerDestroy', (player) => {
       clearTimer(player);
       clearPauseTimer(player);
@@ -337,6 +365,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       player.set('npMessage', undefined);
       player.set('npTrack', undefined);
       if (message && track) {
+        rememberCard(message, track);
         void greyPanel(message, track, true);
         armPanelExpiry(message); // expire Replay/Favorite after ~30 min
       }

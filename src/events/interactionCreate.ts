@@ -1,6 +1,7 @@
 import { Collection, Events, MessageFlags } from 'discord.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
+import { localeOf, t } from '../lib/i18n.js';
 import { logger } from '../lib/logger.js';
 import { instrumentCommand, instrumentComponent } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
@@ -100,10 +101,13 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
       return;
     }
 
+    // User-facing strings are localised to the invoker's Discord language (i18n).
+    const locale = localeOf(interaction);
+
     // Guild-only: every command in this bot operates on a guild voice/text context.
     if (!interaction.inGuild()) {
       await interaction.reply({
-        content: '❌ Elfaria commands can only be used in a server.',
+        content: `❌ ${t('error.guildOnly', locale)}`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -113,7 +117,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
     const remaining = checkCooldown(client, command.data.name, cooldownMs, interaction.user.id);
     if (remaining > 0) {
       await interaction.reply({
-        content: `⏳ Slow down — try again in ${(remaining / 1000).toFixed(1)}s.`,
+        content: `⏳ ${t('error.cooldown', locale, { seconds: (remaining / 1000).toFixed(1) })}`,
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -128,7 +132,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
         { err, command: interaction.commandName, guildId: interaction.guildId },
         'command execution failed',
       );
-      const content = '❌ Something went wrong running that command.';
+      const content = `❌ ${t('error.generic', locale)}`;
       try {
         if (interaction.deferred) {
           await interaction.editReply({ content });

@@ -90,7 +90,7 @@ export function controlRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-/** The live card's utility row: ⭐ Favorite + 🔀 Shuffle. */
+/** The live card's utility row: ⭐ Favorite + 🔀 Shuffle + ↩️ Replay. */
 export function utilityRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   const button = (id: string, emoji: string, label: string): ButtonBuilder =>
     new ButtonBuilder()
@@ -102,6 +102,7 @@ export function utilityRow(disabled = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     button('np:favorite', '⭐', 'Favorite'),
     button('np:shuffle', '🔀', 'Shuffle'),
+    button('np:replay', '↩️', 'Replay'),
   );
 }
 

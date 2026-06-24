@@ -228,19 +228,21 @@ Short answer: **restart/recreate the container — you do NOT need to rebuild.**
 | `npm run dev`       | Run with file-watch (tsx).            |
 | `npm start`         | Run once (tsx).                       |
 | `npm run deploy`    | Register slash commands GLOBALLY (the bot also does this on boot — see below). |
-| `npm run deploy:guild` | Register instantly to `DISCORD_GUILD_ID` only (fast dev iteration). |
-| `npm run deploy:list` | Print which commands are registered globally vs. per-guild (diagnose duplicates). |
+| `npm run deploy:list` | Print which commands are registered globally (and warn about any leftover per-guild dupes). |
 | `npm run train`     | Train the item2vec recommender from play events → model artifact. |
 | `npm run typecheck` | `tsc --noEmit`.                       |
 | `npm run lint`      | ESLint.                               |
 | `npm run format`    | Prettier.                             |
 
-> **Commands are global automatically.** On boot the bot registers its slash
-> commands **globally** (`AUTO_DEPLOY_COMMANDS=true`, the default), so a restart
-> or rebuild is enough — you rarely need `npm run deploy` by hand. Note Discord
-> can take **up to ~1 hour** to propagate a *newly added* command name to every
-> client; existing commands update fast. For instant iteration in one server,
-> set `DISCORD_GUILD_ID` and use `npm run deploy:guild`.
+> **Commands are global, full stop.** Elfaria registers its slash commands
+> **globally only** — guild-scoped registration was removed because Discord
+> merges the two scopes in the picker, so any command registered in both shows up
+> **twice**. On boot the bot re-registers the global set (`AUTO_DEPLOY_COMMANDS=true`,
+> the default) and clears any leftover guild-scoped copies
+> (`CLEAR_ALL_GUILD_COMMANDS=true`), so a restart or rebuild is enough — you
+> rarely need `npm run deploy` by hand. Note Discord can take **up to ~1 hour** to
+> propagate a *newly added* command name to every client; existing commands update
+> fast. To kill an orphaned guild copy by hand, run `npm run deploy -- --clear-guild <id>`.
 
 ## Project structure
 

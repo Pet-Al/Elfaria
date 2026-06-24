@@ -135,11 +135,12 @@ export const config = {
     // Default search source when a query isn't a link. Lavalink search prefixes:
     // ytsearch | ytmsearch (YouTube Music) | scsearch (SoundCloud) | spsearch …
     searchPlatform: optional('DEFAULT_SEARCH_PLATFORM', 'ytsearch'),
-    // How often the now-playing card re-renders its progress bar (ms). Set to 0
-    // to disable live updates entirely — recommended at very large scale, where
-    // editing one message per guild every interval would dominate the bot's
-    // global API budget.
-    nowPlayingRefreshMs: intOption('NOWPLAYING_REFRESH_MS', 15_000),
+    // How often the now-playing card re-renders (ms) — drives the live progress
+    // timer AND the synced-lyrics line. Default 1s for smooth updates. Set to 0
+    // to disable live updates, or RAISE it at very large scale: editing one
+    // message per active guild every second can dominate the bot's global API
+    // budget (~50 req/s), so 1s only suits a modest number of concurrent players.
+    nowPlayingRefreshMs: intOption('NOWPLAYING_REFRESH_MS', 1_000),
     // How many tracks autoplay keeps queued ahead (the "autoplay buffer"). When
     // the queue runs dry and autoplay is on, it tops up to this many related
     // tracks instead of just one, so there's always a visible "up next".
@@ -193,14 +194,13 @@ export const config = {
     // Auto-register slash commands GLOBALLY on boot, so a fresh build/restart
     // never needs a separate `npm run deploy` step (the usual cause of "my
     // commands aren't global / didn't update"). Idempotent. Set
-    // AUTO_DEPLOY_COMMANDS=false to manage registration manually (e.g. when you
-    // use the instant `npm run deploy:guild` dev path).
+    // AUTO_DEPLOY_COMMANDS=false to manage registration manually via `npm run deploy`.
     autoDeploy: optional('AUTO_DEPLOY_COMMANDS', 'true') !== 'false',
-    // Nuclear de-dupe: when true, on boot the bot clears GUILD-scoped commands
-    // from every server it's in, leaving only the global set. Use this once if
-    // you have stubborn doubled commands from an old `deploy:guild`, then turn it
-    // back off (it costs one API call per guild). Default off.
-    clearGuildCommands: optional('CLEAR_ALL_GUILD_COMMANDS', 'false') === 'true',
+    // Commands are GLOBAL-only. On boot the bot clears any leftover GUILD-scoped
+    // commands from every server it's in (the only source of doubled commands),
+    // leaving just the global set. ON by default — set false ONLY at very large
+    // guild counts where the per-guild API call on boot is too costly.
+    clearGuildCommands: optional('CLEAR_ALL_GUILD_COMMANDS', 'true') !== 'false',
   },
 
   // Analytics event pipeline (doc roadmap #3). Events are always written to the

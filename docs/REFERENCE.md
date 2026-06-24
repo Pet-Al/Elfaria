@@ -50,6 +50,7 @@ bot's voice channel.
 | `/shuffle` | — | voice+DJ | Shuffle the queue. |
 | `/loop` | (dropdown on the card) | voice+DJ | Off / track / queue (× once / infinite). |
 | `/autoplay` | `[when-off: dequeue\|keep]` | voice+DJ | Toggle related-track autoplay; buffers ahead. |
+| `/recommend` | `[count]` | voice+DJ | Queue picks for you (trained model + co-play + your taste). |
 | `/reroll` | — | voice+DJ | Replace autoplay picks with a fresh shuffle. |
 | `/autoplay-dequeue` | — | voice+DJ | Remove autoplay picks (keeps your own). |
 
@@ -57,9 +58,10 @@ bot's voice channel.
 
 | Command | Options | Gate | Description |
 |---------|---------|------|-------------|
-| `/lofi` | `[shuffle]` | voice+DJ | Load a lofi playlist, looped. |
+| `/lofi` | `[theme] [shuffle]` | voice+DJ | Play a lofi **theme** (chill/study/sleep/jazz/chillhop/synthwave/rainy); enables autoplay for endless play — no forced loop. |
 | `/24-7` | `[mode: until-empty\|forever\|off]` | voice+DJ | Stay in voice; auto-rejoins on restart. |
 | `/filter` | `type`, `[save]` | voice+DJ | EQ/effects (incl. `vocal`); `save:true` = server default. |
+| `/sponsorblock` | `[mode: on\|off]` | voice+DJ | Skip sponsor/intro/outro/off-topic segments (persisted per guild). |
 | `/volume` | `level` | voice+DJ | Set volume (persisted per guild). |
 
 ### Library, server & meta
@@ -68,7 +70,7 @@ bot's voice channel.
 |---------|---------|------|-------------|
 | `/favorites` | `list` / `play` | — | Your ⭐ saved tracks. |
 | `/history` | — | — | Paginated per-server play history. |
-| `/playlist` | save/list/load/delete | — | Per-user named playlists. |
+| `/playlist` | save/list/load/delete | — | Per-user named playlists (name **autocomplete** on load/delete). |
 | `/summon` | — | voice | Move the bot to your channel. |
 | `/settings` | DJ role, default volume | Manage Server | Per-guild settings. |
 | `/status` | — | — | Live health (servers/players/nodes/uptime). |
@@ -226,7 +228,7 @@ SLOs, burn-rate alerts, forecast + anomaly rules: **[SLO.md](./SLO.md)** and
 |-----------|------|
 | `dev` / `start` | Run (watch / once) via tsx. |
 | `start:sharded` | Run under ShardingManager. |
-| `deploy` / `deploy:guild` / `deploy:list` | Register commands (global / instant-guild / inspect). `deploy -- --clear-guild <id>` removes an orphaned guild copy. |
+| `deploy` / `deploy:list` | Register commands GLOBALLY (Elfaria is global-only) / inspect what's registered. `deploy -- --clear-guild <id>` removes an orphaned guild copy. |
 | `train` | Train the item2vec recommender → model artifact. |
 | `typecheck` / `lint` / `format` | `tsc --noEmit` / ESLint / Prettier. |
 | `test` / `test:coverage` | `node:test` suite (+ coverage gate). |

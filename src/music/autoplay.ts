@@ -1,6 +1,7 @@
 import type { Player, SearchResult, Track } from 'lavalink-client';
 import { assignVariant, recordExposure } from '../analytics/experiments.js';
 import { coPlayedAfter } from '../analytics/recommend.js';
+import { userTopTracks } from '../analytics/taste.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 import { recommendTracks } from '../ml/recommender.js';
@@ -79,6 +80,28 @@ async function trainedCandidates(player: Player, seed: Track): Promise<Track[]> 
   return out;
 }
 
+/**
+ * Personal-taste candidates: the SEED's requester's own most-played tracks. A
+ * gentle nudge toward what this listener actually reaches for — blended in
+ * low-weight so it personalises the mix without flooding it with their same old
+ * songs (the rolling "seen" set + a small slice keep it fresh).
+ */
+async function tasteCandidates(player: Player, seed: Track): Promise<Track[]> {
+  const requester = seed.requester as { id?: string } | undefined;
+  if (!requester?.id) return [];
+  const out: Track[] = [];
+  try {
+    for (const t of await userTopTracks(requester.id, 8)) {
+      if (t.uri === seed.info.uri) continue;
+      const found = await searchUri(player, t.uri, seed);
+      if (found) out.push(found);
+    }
+  } catch (err) {
+    logger.debug({ err, guildId: player.guildId }, 'taste lookup failed');
+  }
+  return out;
+}
+
 /** Co-play collaborative-filter candidates (what this guild plays next). */
 async function coplayCandidates(player: Player, seed: Track): Promise<Track[]> {
   const out: Track[] = [];
@@ -110,6 +133,10 @@ async function gatherCandidates(player: Player, seed: Track): Promise<Track[]> {
         : [trainedCandidates, coplayCandidates];
     pool.push(...(await first(player, seed)));
     pool.push(...(await second(player, seed)));
+
+    // Personal nudge: a small slice of the requester's own taste, mixed below
+    // the learned guild picks so it colours the buffer without dominating it.
+    pool.push(...shuffle(await tasteCandidates(player, seed)).slice(0, 2));
   }
 
   // 3. Heuristic fallback: YouTube's mix/radio (genre-aware) for any source.

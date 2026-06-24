@@ -20,65 +20,43 @@ import { logger } from './logger.js';
 
 type RegisteredCommand = { name: string };
 
-export type CommandScope = 'global' | 'guild';
-
 export interface SyncResult {
-  scope: CommandScope;
   count: number;
-  /** How many commands were cleared from the *other* scope to avoid duplicates. */
+  /** How many commands were cleared from the configured guild to avoid duplicates. */
   cleared: number;
 }
 
 /**
- * Register the current command set with Discord.
- *
- * - `global` (default; what most deploys want): commands appear in EVERY server
- *   the bot is in. The first time a *new* command is added, Discord can take up
- *   to ~1 hour to propagate it to clients — existing commands are unaffected.
- *   Also clears the configured dev-guild copy so nothing shows twice.
- * - `guild`: instant, but only in `DISCORD_GUILD_ID` — the fast dev/iteration
- *   path. Clears the global set so commands don't appear twice. Falls back to
- *   global automatically when no guild is configured.
+ * Register the current command set GLOBALLY (the only scope Elfaria uses —
+ * guild-scoped registration was removed because it's the sole cause of doubled
+ * commands). Commands appear in EVERY server; the first time a *new* command
+ * name is added, Discord can take up to ~1h to propagate it. Also clears the
+ * configured dev-guild copy so nothing shows twice.
  */
-export async function syncCommands(scope: CommandScope = 'global'): Promise<SyncResult> {
+export async function syncCommands(): Promise<SyncResult> {
   const rest = new REST().setToken(config.discord.token);
   const body = commands.map((command) => command.data.toJSON());
   const { clientId, guildId } = config.discord;
 
-  // 'guild' is only meaningful when a guild is configured; otherwise force global.
-  const effective: CommandScope = scope === 'guild' && guildId ? 'guild' : 'global';
-
-  if (effective === 'global') {
-    await rest.put(Routes.applicationCommands(clientId), { body });
-    let cleared = 0;
-    if (guildId) {
-      const existing = (await rest.get(
-        Routes.applicationGuildCommands(clientId, guildId),
-      )) as RegisteredCommand[];
-      if (existing.length > 0) {
-        await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] });
-        cleared = existing.length;
-      }
-    }
-    return { scope: 'global', count: body.length, cleared };
-  }
-
-  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-  const existingGlobal = (await rest.get(
-    Routes.applicationCommands(clientId),
-  )) as RegisteredCommand[];
+  await rest.put(Routes.applicationCommands(clientId), { body });
   let cleared = 0;
-  if (existingGlobal.length > 0) {
-    await rest.put(Routes.applicationCommands(clientId), { body: [] });
-    cleared = existingGlobal.length;
+  if (guildId) {
+    const existing = (await rest.get(
+      Routes.applicationGuildCommands(clientId, guildId),
+    )) as RegisteredCommand[];
+    if (existing.length > 0) {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] });
+      cleared = existing.length;
+    }
   }
-  return { scope: 'guild', count: body.length, cleared };
+  return { count: body.length, cleared };
 }
 
 /**
  * Clear GUILD-scoped commands from each of `guildIds`, returning how many guilds
- * actually had some. The nuclear de-dupe for leftover `deploy:guild` registrations
- * that double the global set in servers we don't track via DISCORD_GUILD_ID.
+ * actually had some. The nuclear de-dupe for leftover guild-scoped registrations
+ * (from an older build) that double the global set in servers we don't track via
+ * DISCORD_GUILD_ID.
  */
 export async function clearGuildCommands(guildIds: string[]): Promise<number> {
   const rest = new REST().setToken(config.discord.token);
@@ -116,8 +94,9 @@ export function commandsHash(): string {
  *   1. Re-PUTs the GLOBAL set only when the definitions actually changed (a hash
  *      stored in app_settings) — so a normal restart doesn't re-trigger Discord's
  *      ~1h global propagation, and the command set has exactly one home.
- *   2. ALWAYS clears the configured dev guild's copy, so a leftover `deploy:guild`
- *      registration can't coexist with the global set and double everything up.
+ *   2. ALWAYS clears the configured dev guild's copy, so a leftover guild-scoped
+ *      registration (from an older build) can't coexist with the global set and
+ *      double everything up.
  *
  * Fail-soft: any REST/DB hiccup is logged and swallowed — it must never block boot.
  */

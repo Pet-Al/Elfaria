@@ -1,30 +1,20 @@
 import { REST, Routes } from 'discord.js';
 import { config } from './src/config.js';
-import { type CommandScope, syncCommands } from './src/lib/commandSync.js';
+import { syncCommands } from './src/lib/commandSync.js';
 import { logger } from './src/lib/logger.js';
 
 /**
  * Registers slash-command definitions with Discord's REST API (doc §2).
  *
- * NOTE: the bot ALSO auto-registers on boot (GLOBAL) unless AUTO_DEPLOY_COMMANDS
- * is false — see src/lib/commandSync.ts + src/events/ready.ts. This script is for
- * registering WITHOUT booting (e.g. CI/CD), or for the instant `--guild` dev path.
- * Both share the SAME `syncCommands()` implementation, so they can't drift.
- *
- * DEFAULT (no flag) → GLOBAL registration: commands appear in EVERY server the
- * bot is in (propagation can take up to ~1 hour). It also clears the configured
- * guild's copy so nothing shows twice. This is what most deploys want.
+ * Elfaria is GLOBAL-only — guild-scoped registration was removed because it's the
+ * sole cause of doubled commands. The bot also auto-registers on boot (and clears
+ * any leftover guild commands) unless AUTO_DEPLOY_COMMANDS is false; this script
+ * is for registering WITHOUT booting (e.g. CI/CD) and for diagnostics/cleanup.
  *
  * Flags:
- *   --guild   Register instantly to DISCORD_GUILD_ID only (and clear global) —
- *             the fast dev/iteration path. Requires DISCORD_GUILD_ID set.
- *   --global  Explicit alias for the default global behaviour.
- *   --list    Print what's currently registered in each scope (handy for
- *             diagnosing duplicates / which guild your commands are in).
- *   --clear-guild <id>   Remove ALL commands from one guild. Use this to kill
- *             duplicates left behind by an old `deploy:guild` after you removed
- *             DISCORD_GUILD_ID from the env (the bot can only auto-clear the
- *             guild it still knows about).
+ *   (none)               Register GLOBALLY (propagation can take up to ~1 hour).
+ *   --list               Print what's currently registered (global + dev guild).
+ *   --clear-guild <id>   Remove ALL commands from one guild (kill leftover dupes).
  */
 type RegisteredCommand = { name: string };
 
@@ -50,41 +40,25 @@ async function list(): Promise<void> {
     )) as RegisteredCommand[];
     logger.info(
       { count: guild.length, guildId: config.discord.guildId, names: guild.map((c) => c.name) },
-      'GUILD commands',
+      'GUILD commands (these should be empty — Elfaria is global-only)',
     );
-  }
-
-  if (global.length > 0 && config.discord.guildId) {
-    logger.warn(
-      'You have GLOBAL commands AND a guild configured — that is the usual cause ' +
-        'of duplicates. Run `npm run deploy` (no --list) to clear the global set.',
-    );
-  }
-}
-
-async function register(scope: CommandScope): Promise<void> {
-  const result = await syncCommands(scope);
-  if (result.scope === 'global') {
-    logger.info(
-      { count: result.count, clearedGuild: result.cleared },
-      'registered GLOBAL commands (propagation can take up to ~1 hour)',
-    );
-  } else {
-    logger.info(
-      { count: result.count, guildId: config.discord.guildId, clearedGlobal: result.cleared },
-      'registered guild commands (instant) and cleared global commands',
-    );
-    if (result.cleared > 0) {
+    if (guild.length > 0) {
       logger.warn(
-        'Cleared global commands — Discord can take up to ~1 hour to drop them ' +
-          'from clients. Restart your Discord app (Ctrl+R) to refresh sooner.',
+        'Found guild-scoped commands — they double the global set. The bot clears ' +
+          'these on boot (CLEAR_ALL_GUILD_COMMANDS), or run --clear-guild <id> now.',
       );
     }
   }
 }
 
-// GLOBAL is the default (commands appear in every server). Pass --guild to
-// register instantly to DISCORD_GUILD_ID instead — the fast dev/iteration path.
+async function register(): Promise<void> {
+  const result = await syncCommands();
+  logger.info(
+    { count: result.count, clearedGuild: result.cleared },
+    'registered GLOBAL commands (propagation can take up to ~1 hour)',
+  );
+}
+
 const clearGuildIdx = process.argv.indexOf('--clear-guild');
 const run = process.argv.includes('--list')
   ? list
@@ -94,7 +68,7 @@ const run = process.argv.includes('--list')
         if (!id) throw new Error('--clear-guild requires a guild id, e.g. --clear-guild 123456789');
         return clearGuild(id);
       }
-    : () => register(process.argv.includes('--guild') ? 'guild' : 'global');
+    : register;
 run()
   .then(() => {
     // One-shot script: force a clean exit. Importing the command modules pulls

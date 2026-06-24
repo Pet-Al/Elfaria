@@ -23,15 +23,16 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/queue` — view the queue (paged) · `/clear` — empty it',
       '`/move` `/remove` `/shuffle` — reorder / trim / shuffle',
       '`/loop` — track/queue loop · `/autoplay` — keep going when it ends',
-      '`/reroll` — fresh autoplay picks · `/autoplay-dequeue` — drop the autoplay picks',
+      '`/recommend` — queue picks made for you · `/reroll` — fresh autoplay picks',
+      '`/autoplay-dequeue` — drop the autoplay picks',
     ],
   },
   {
     name: '🎛️ Modes & sound',
     lines: [
-      '`/lofi` — continuous lofi playlist (looped) · `/24-7` — stay in voice (until-empty/forever)',
+      '`/lofi` — pick a lofi **theme** (chill/study/sleep/jazz/…) · `/24-7` — stay in voice (until-empty/forever)',
       '`/filter` — EQ / effects incl. **vocal** clarity (add `save:true` for a server default)',
-      '`/volume` — set the volume',
+      '`/sponsorblock` — skip sponsor/intro/off-topic segments · `/volume` — set the volume',
     ],
   },
   {
@@ -51,8 +52,9 @@ const GROUPS: { name: string; lines: string[] }[] = [
 
 const BUTTONS =
   '**Now-playing buttons:** ⏮️ back · ⏯️ play/pause · ⏭️ skip · ⏹️ stop · 📜 queue · ' +
-  '⭐ favorite · 🔀 shuffle · plus loop / volume / seek dropdowns. Finished cards keep ' +
-  '↩️ Replay + ⭐ Favorite.';
+  '⭐ favorite · 🔀 shuffle · ↩️ replay · plus loop / volume / seek dropdowns. ' +
+  'Favorite/Replay always target the song on the card you click (even an old one), ' +
+  'and finished cards keep ↩️ Replay + ⭐ Favorite for ~30 min.';
 
 export const help: Command = {
   data: new SlashCommandBuilder().setName('help').setDescription('List Elfaria’s commands.'),

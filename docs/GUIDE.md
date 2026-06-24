@@ -15,30 +15,38 @@ all work.
 
 **The now-playing card.** One tidy card updates in place as songs change:
 
-- Buttons: ⏮️ back · ⏯️ play/pause · ⏭️ skip · ⏹️ stop · 📜 queue, plus ⭐ Favorite
-  and 🔀 Shuffle.
+- Buttons: ⏮️ back · ⏯️ play/pause · ⏭️ skip · ⏹️ stop · 📜 queue, plus ⭐ Favorite,
+  🔀 Shuffle and ↩️ Replay.
 - Dropdowns: **Loop** (track/queue × once/infinite), **Volume**, and **Seek**
   (jump points that scale with the track length).
-- A live progress bar and the **current lyric line** (when available).
+- A live progress bar **and** the **current lyric line** that both update every
+  second.
+- ⭐ Favorite and ↩️ Replay always act on the song **on the card you clicked** —
+  even an older one scrolled up the channel, not whatever is playing now.
 - When a song's card is retired it keeps **Replay** + **Favorite** for ~30 min,
   so you can still bring a track back or save it.
 
 **Keep the music going.** `/autoplay` queues related tracks ahead of time (you'll
-see them in "up next"). Don't like the picks? `/reroll` for a fresh set, or
-`/autoplay-dequeue` to drop them. Turning autoplay off can dequeue them too
-(`/autoplay when-off:dequeue`).
+see them in "up next"), now nudged by your personal taste. Don't like the picks?
+`/reroll` for a fresh set, or `/autoplay-dequeue` to drop them. Want a hand-picked
+set right now? `/recommend` queues tracks chosen for you from what you and your
+server actually play.
 
-**Chill mode.** `/lofi` loads a looped lofi playlist. `/24-7` keeps the bot in the
-channel after the queue ends — `until-empty` (leaves if everyone does), `forever`
-(stays regardless), or `off`. It even rejoins and resumes after a restart.
+**Chill mode.** `/lofi theme:` picks a vibe — chill, study, sleep, jazz, chillhop,
+synthwave or rainy — each its own mix, and keeps going via autoplay (no forced
+loop). `/24-7` keeps the bot in the channel after the queue ends — `until-empty`
+(leaves if everyone does), `forever` (stays regardless), or `off`. It even rejoins
+and resumes after a restart.
 
 **Find & revisit.** `/lyrics` for the full lyrics, ⭐ to favourite (then
 `/favorites`), `/history` to browse what's played (paged), and
 `/replay [position]` to play something from history again.
 
 **Sound.** `/filter` for EQ/effects — bass boost, nightcore, vaporwave, 8D,
-karaoke, lowpass, pop/rock/electronic, and **vocal** (clearer singing). `/volume`
-sets the level. `/status` shows live health; `/about` explains what powers it.
+karaoke, lowpass, pop/rock/electronic, and **vocal** (clearer singing).
+`/sponsorblock on` skips sponsor reads, intros/outros and off-topic talking inside
+tracks. `/volume` sets the level. `/status` shows live health; `/about` explains
+what powers it.
 
 ---
 
@@ -62,10 +70,11 @@ cp .env.example .env        # fill in DISCORD_TOKEN + DISCORD_CLIENT_ID
 docker compose up -d        # bot + Lavalink + Postgres
 ```
 
-Commands **auto-register globally on boot** — no separate step. (Global
-propagation can take up to ~1h the first time a *new* command name appears.) For
-instant iteration in one test server, set `DISCORD_GUILD_ID` and
-`npm run deploy:guild`.
+Commands **auto-register globally on boot** — no separate step, and Elfaria is
+**global-only** (guild-scoped registration was removed because it's the sole
+cause of doubled commands; the bot also clears any leftover guild copies on
+boot). Global propagation can take up to ~1h the first time a *new* command name
+appears; existing commands update fast.
 
 ### Configuration
 

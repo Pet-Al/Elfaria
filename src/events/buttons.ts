@@ -12,6 +12,7 @@ import { getLastPlayed } from '../db/history.js';
 import { isDjMember } from '../lib/interactions.js';
 import { type LoopState, applyLoop, loopLabel } from '../music/loop.js';
 import { ensurePlayer, formatDuration, skipCurrent } from '../music/QueueManager.js';
+import { getCardTrack } from '../music/panelStore.js';
 import { refreshPanel } from '../music/player.js';
 import { resolve } from '../music/sources.js';
 
@@ -151,20 +152,26 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
- * Toggle a personal favorite (customId np:favorite). Works on a live card (the
- * current track) AND on a finished/expired card with no active player — in which
- * case it falls back to the guild's last-played track. Personal, so no DJ gate.
+ * Toggle a personal favorite (customId np:favorite). Favorites the track shown on
+ * the SPECIFIC card you clicked — looked up by the card's message id — so pressing
+ * ⭐ on an older (buried/finished) card saves *that* song, not whatever is playing
+ * now. Falls back to the live current track, then the guild's last-played track
+ * (e.g. after a restart wiped the in-memory card map). Personal, so no DJ gate.
  */
 async function handleFavorite(
   interaction: ButtonInteraction<'cached'>,
   client: ElfariaClient,
 ): Promise<void> {
   const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  // The card you clicked wins. Only if we don't know it (restart) do we fall
+  // back to the live track, then the guild's last-played.
+  const mapped = getCardTrack(interaction.message.id);
   const current = client.lavalink.getPlayer(interaction.guildId)?.queue.current;
   const track =
-    current?.info.uri != null
+    mapped ??
+    (current?.info.uri != null
       ? { title: current.info.title, uri: current.info.uri, author: current.info.author }
-      : await getLastPlayed(interaction.guildId);
+      : await getLastPlayed(interaction.guildId));
 
   if (!track?.uri) {
     await reply('❌ Nothing to favourite.');
@@ -179,9 +186,11 @@ async function handleFavorite(
 }
 
 /**
- * Replay the most recently played track (customId np:replay, shown on the
- * queue-finished message). Re-resolves it by URL and starts it, recreating the
- * player if the bot already left. Open to anyone in the voice channel.
+ * Replay the track shown on the card you clicked (customId np:replay). Looks the
+ * track up by the card's message id so replaying an OLDER card brings back THAT
+ * song — falling back to the guild's last-played track when the card map was
+ * wiped (a restart). Re-resolves by URL and starts it, recreating the player if
+ * the bot already left. Open to anyone in the voice channel.
  */
 async function handleReplay(
   interaction: ButtonInteraction<'cached'>,
@@ -193,7 +202,7 @@ async function handleReplay(
     return;
   }
 
-  const last = await getLastPlayed(interaction.guildId);
+  const last = getCardTrack(interaction.message.id) ?? (await getLastPlayed(interaction.guildId));
   if (!last) {
     await interaction.reply({
       content: '❌ Nothing has played recently to replay.',

@@ -43,6 +43,35 @@ export async function forgetPanel(guildId: string): Promise<void> {
   await deleteAppSetting(key(guildId)).catch(() => undefined);
 }
 
+// ── Per-card track memory (so Favorite targets the card you clicked) ──────────
+// Every now-playing card — live, buried, or finished — represents ONE specific
+// track. Without this map, the Favorite button on an old card would save
+// whatever is playing *now* (the reported bug), because the handler only knew
+// the live `current`. Keyed by MESSAGE id; in-memory (a restart falls back to
+// the guild's last-played track). Bounded with FIFO eviction.
+export interface CardTrack {
+  title: string;
+  uri: string;
+  author?: string;
+}
+const CARD_TRACK_LIMIT = 1000;
+const cardTracks = new Map<string, CardTrack>();
+
+/** Record which track a given card message shows (for its Favorite button). */
+export function rememberCardTrack(messageId: string, track: CardTrack): void {
+  cardTracks.delete(messageId); // re-insert so it counts as most-recent
+  cardTracks.set(messageId, track);
+  if (cardTracks.size > CARD_TRACK_LIMIT) {
+    const oldest = cardTracks.keys().next().value;
+    if (oldest !== undefined) cardTracks.delete(oldest);
+  }
+}
+
+/** The track shown on a given card message, if still remembered. */
+export function getCardTrack(messageId: string): CardTrack | undefined {
+  return cardTracks.get(messageId);
+}
+
 // ── Time-based expiry of a retired card's Replay/Favorite buttons ─────────────
 // Keyed by MESSAGE id so every retired card (final, buried, or destroyed) gets
 // its own ~30-minute Favorite/Replay window independently.
@@ -61,6 +90,7 @@ export function armPanelExpiry(message: Message): void {
   clearPanelExpiry(message.id);
   const timer = setTimeout(() => {
     expiryTimers.delete(message.id);
+    cardTracks.delete(message.id); // its buttons are about to be disabled
     void expireMessage(message);
   }, EXPIRY_MS);
   timer.unref?.(); // don't keep the process alive just for this

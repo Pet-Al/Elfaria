@@ -5,6 +5,38 @@ Notable changes, newest first. Elfaria is pre-1.0 and on a single rolling branch
 semver tags. See [docs/REFERENCE.md](./docs/REFERENCE.md) for the full reference
 and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 
+## Per-second cards, per-track favorites, lofi themes & the next 5
+
+- **Now-playing updates every second** — `NOWPLAYING_REFRESH_MS` defaults to
+  `1000` (was 15000) so the progress timer **and** the synced-lyrics line tick
+  live. The lyric line is driven entirely by this refresh, not a separate timer.
+  At large scale raise it (one edit per active guild per second eats the ~50
+  req/s global budget) or set `0` to disable live updates.
+- **↩️ Replay button** added to the live card's utility row (right of 🔀 Shuffle).
+- **Favorite/Replay target the card you clicked** — each card remembers its own
+  track, so pressing ⭐/↩️ on an **older** card saves/replays *that* song, not
+  whatever is playing now (was: always the current track).
+- **Guild commands removed entirely** — Elfaria is **global-only** now; the
+  guild-scoped registration path (the sole cause of doubled commands) is gone.
+  `deploy:guild`/`deploy:global` scripts removed; the bot still clears any
+  orphaned guild copies on boot (`CLEAR_ALL_GUILD_COMMANDS`).
+- **`/lofi` is now per-theme** — `theme:` choices (chill/study/sleep/jazz/
+  chillhop/synthwave/rainy), each its own search seed. Livestreams are filtered
+  out (only one of the 24/7 radios reliably resolved), and continuity comes from
+  **autoplay** instead of a forced queue-loop — fixes "never ends / loops the
+  last 3 songs".
+- **Next 5:**
+  - **SponsorBlock** — `/sponsorblock on|off` skips sponsor/intro/outro/
+    off-topic segments via the Lavalink SponsorBlock plugin (per-guild, persisted).
+  - **User taste profiles** — autoplay now blends in a low-weight slice of the
+    requester's own most-played tracks (`analytics/taste.ts`).
+  - **`/recommend`** — queues picks made for you from the trained model +
+    co-play + your taste, falling back to your top artist.
+  - **i18n scaffold** (`lib/i18n.ts`) — `t(key, locale)` with en/es/fr/de and
+    English fallback; router messages localise to the user's Discord language.
+  - **Playlist name autocomplete** — `/playlist load`/`delete` suggest your own
+    saved playlists, so they're usable without typing the exact name.
+
 ## Player UX & lyrics polish
 
 - **Lyrics reliability** — LRCLIB lookups now use a 12s timeout + one retry on

@@ -5,6 +5,7 @@ import { getAppSetting, getBoolSetting } from '../db/appSettings.js';
 import { getGuildSettings } from '../db/guilds.js';
 import { autoPlayFunction } from './autoplay.js';
 import { applyFilter } from './filters.js';
+import { applySponsorBlock, sponsorBlockKey } from './sponsorblock.js';
 
 /** app_settings key for a guild's persisted autoplay default. */
 export const autoplayKey = (guildId: string) => `autoplay:${guildId}`;
@@ -57,6 +58,10 @@ export async function ensurePlayer(
     // Re-apply the guild's saved filter (if any), so it survives restarts/re-joins.
     const savedFilter = await getAppSetting(filterKey(guildId)).catch(() => undefined);
     if (savedFilter && savedFilter !== 'off') await applyFilter(player, savedFilter).catch(() => undefined);
+    // Re-apply the guild's SponsorBlock preference (off unless explicitly enabled).
+    if ((await getAppSetting(sponsorBlockKey(guildId)).catch(() => undefined)) === 'on') {
+      await applySponsorBlock(player, true);
+    }
   }
   if (!player.connected) await player.connect();
   return player;

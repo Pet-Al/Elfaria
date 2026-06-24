@@ -114,7 +114,8 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   for ALL sources (genre-aware, not same-artist-only) with anti-repeat.
 - Event pipeline (DB + optional Kafka), co-play recommender, public stats API
   (`/api/*`), `/forget-me` + PRIVACY.md + retention, Trivy scan + NetworkPolicy +
-  pod hardening. Commands are now GLOBAL by default (`deploy:guild` for dev).
+  pod hardening. Commands are now GLOBAL-only (guild-scoped registration removed —
+  it was the sole cause of doubled commands).
 - Fixed: autoplay/skip now advances via autoplay instead of stopping; /lyrics
   switched from the dead lyrics.ovh to LRCLIB (now also parses "Artist - Title").
 - Dynamic **seek dropdown** (10s steps that scale with track length, ≤25 options).

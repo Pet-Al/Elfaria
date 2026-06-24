@@ -64,20 +64,23 @@ commands" you saw. It's not cosmetic:
   **drift** (different descriptions/options);
 - it makes the bot look broken.
 
-How you end up with both populated: you register globally (the default), then
-also run `deploy:guild` for instant testing — now the same names live in both
-scopes. The old boot path made it worse by re-PUTting global **every** restart,
-which re-starts Discord's ~1h propagation each time, so during that window the
-guild copy and the still-propagating global copy coexisted → dupes.
+How you used to end up with both populated: an older build let you register
+guild-scoped commands for instant testing — so the same names lived in both
+scopes. That path has been **removed entirely**: Elfaria now registers
+**globally only**. The old boot path also made it worse by re-PUTting global
+**every** restart, which re-starts Discord's ~1h propagation each time, so
+during that window the guild copy and the still-propagating global copy
+coexisted → dupes.
 
 **The fix** (`reconcileGlobalCommands`, `lib/commandSync.ts`):
 1. the global set is re-PUT **only when the definitions actually changed** (a
    hash in `app_settings`), so a normal restart doesn't churn propagation;
-2. every boot **always clears the configured guild's copy**, so a leftover
-   `deploy:guild` can't coexist with global.
+2. every boot **always clears any leftover guild-scoped copy**
+   (`CLEAR_ALL_GUILD_COMMANDS`), so an orphaned registration from an older build
+   can't coexist with global.
 
 So commands live in exactly **one** scope (global). If you ever orphaned a guild
-copy by removing `DISCORD_GUILD_ID`, clear it once with
+copy from an older build, clear it once with
 `npm run deploy -- --clear-guild <id>` (or `npm run deploy:list` to see what's
 where). The only unavoidable wait is Discord's **~1 hour** to propagate a *newly
 named* command globally — existing commands update quickly.
