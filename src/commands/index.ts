@@ -7,6 +7,7 @@ import { favorites } from './favorites.js';
 import { filter } from './filter.js';
 import { forgetme } from './forgetme.js';
 import { history } from './history.js';
+import { lofi } from './lofi.js';
 import { loop } from './loop.js';
 import { lyrics } from './lyrics.js';
 import { move } from './move.js';
@@ -27,6 +28,7 @@ import { skip } from './skip.js';
 import { skipto } from './skipto.js';
 import { stop } from './stop.js';
 import { summon } from './summon.js';
+import { twentyfourseven } from './twentyfourseven.js';
 import { volume } from './volume.js';
 
 /**
@@ -55,6 +57,8 @@ export const commands: Command[] = [
   playlist,
   autoplay,
   reroll,
+  lofi,
+  twentyfourseven,
   filter,
   history,
   replay,

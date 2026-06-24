@@ -219,6 +219,15 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     .on('queueEnd', async (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
       clearTimer(player);
+
+      // 24/7 mode: cancel lavalink-client's queue-empty disconnect so the bot
+      // stays connected (the empty-channel rule in voiceStateUpdate still applies).
+      if (player.get<boolean>('247')) {
+        const pending = player.get<NodeJS.Timeout | undefined>('internal_queueempty');
+        if (pending) clearTimeout(pending);
+        player.set('internal_queueempty', undefined);
+      }
+
       player.set('npFinished', true);
 
       const track = player.get<Track | undefined>('npTrack');
@@ -248,8 +257,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       });
     })
     .on('playerPaused', (player) => {
-      // Don't linger paused in voice forever — arm the inactivity leave.
-      armPauseTimer(player);
+      // Don't linger paused in voice forever — arm the inactivity leave. In 24/7
+      // mode we skip it (the empty-channel rule still covers "nobody's here").
+      if (!player.get<boolean>('247')) armPauseTimer(player);
       void refreshPanel(player, true);
     })
     .on('playerResumed', (player) => {
