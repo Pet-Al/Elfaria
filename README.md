@@ -21,7 +21,11 @@ not the whole bot.
 > **[docs/ARCHITECTURE_COMPARISON.md](./docs/ARCHITECTURE_COMPARISON.md)**.
 > How it stays up (self-healing, tracing, circuit breaker, tests/CD) is in
 > **[docs/RELIABILITY.md](./docs/RELIABILITY.md)**; Kubernetes autoscaling lives
-> in **[k8s/](./k8s/)** and chaos experiments in **[chaos/](./chaos/)**.
+> in **[k8s/](./k8s/)** and chaos experiments in **[chaos/](./chaos/)**. The
+> **data architecture** (DB schema, the Kafka event pipeline, the public API, all
+> storage + GDPR) is in **[docs/DATA.md](./docs/DATA.md)**; service levels and
+> error budgets in **[docs/SLO.md](./docs/SLO.md)**; multi-pod sharding + canary
+> rollouts in **[docs/SCALING_SHARDING.md](./docs/SCALING_SHARDING.md)**.
 
 ## Features
 
@@ -174,17 +178,52 @@ See [`.env.example`](./.env.example).
 > secret are all credentials. They live only in `.env`, which is gitignored —
 > never commit them.
 
+#### When do `.env` changes take effect? (save vs restart vs rebuild)
+
+Short answer: **restart/recreate the container — you do NOT need to rebuild.**
+
+- **Saving `.env` alone → nothing happens.** Config is read once at process
+  startup (`src/config.ts` via dotenv); there's no hot-reload. A running bot
+  keeps the old values.
+- **Restart / recreate → applies the change.** Compose loads your `.env` through
+  `env_file: .env` (and for variable substitution) when the container is
+  *created*, so:
+  ```bash
+  docker compose up -d              # recreates services whose env changed
+  docker compose up -d --force-recreate bot   # force it if compose thinks nothing changed
+  ```
+  Non-Docker: just restart `npm start` (or `npm run dev`, which restarts on
+  *source* edits — but bounce it to be sure for an `.env` edit).
+- **Rebuild (`docker compose build`) is only for CODE/dependency changes.** The
+  image bundles `src/` + `node_modules` but **not** `.env` (it's injected at
+  runtime), so a credential or tuning change never needs a rebuild — only
+  `git pull` + new code does.
+- **Two exceptions** that need `--force-recreate` of a *specific* service:
+  Lavalink config in the bind-mounted `lavalink/application.yml` and **Spotify
+  credentials** → `docker compose up -d --force-recreate lavalink`. And a change
+  that adds/renames a **command** still needs `npm run deploy` (or just reboot —
+  the bot now auto-registers globally on start; see below).
+
 ## Scripts
 
 | Script              | Purpose                               |
 | ------------------- | ------------------------------------- |
 | `npm run dev`       | Run with file-watch (tsx).            |
 | `npm start`         | Run once (tsx).                       |
-| `npm run deploy`    | Register slash commands with Discord. |
+| `npm run deploy`    | Register slash commands GLOBALLY (the bot also does this on boot — see below). |
+| `npm run deploy:guild` | Register instantly to `DISCORD_GUILD_ID` only (fast dev iteration). |
 | `npm run deploy:list` | Print which commands are registered globally vs. per-guild (diagnose duplicates). |
+| `npm run train`     | Train the item2vec recommender from play events → model artifact. |
 | `npm run typecheck` | `tsc --noEmit`.                       |
 | `npm run lint`      | ESLint.                               |
 | `npm run format`    | Prettier.                             |
+
+> **Commands are global automatically.** On boot the bot registers its slash
+> commands **globally** (`AUTO_DEPLOY_COMMANDS=true`, the default), so a restart
+> or rebuild is enough — you rarely need `npm run deploy` by hand. Note Discord
+> can take **up to ~1 hour** to propagate a *newly added* command name to every
+> client; existing commands update fast. For instant iteration in one server,
+> set `DISCORD_GUILD_ID` and use `npm run deploy:guild`.
 
 ## Project structure
 

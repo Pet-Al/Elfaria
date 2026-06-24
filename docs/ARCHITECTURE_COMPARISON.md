@@ -57,8 +57,8 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Gateway sharding | ✅ | `src/shard.ts` runs the bot under discord.js `ShardingManager` — the same hard requirement Discord imposes (~2,500 guilds/shard). |
 | Audio tier autoscaling | ✅ | `k8s/lavalink-hpa.yaml` scales Lavalink pods on CPU; the bot pre-declares one node per pod and balances across live ones. This is genuine demand-driven horizontal scaling of the expensive tier. |
 | Load balancing across backends | ✅ | `lavalink-client` routes each new player to the least-loaded node (`src/client.ts` node pool). Analogous to a least-connections LB. |
-| Multi-region / geo-routing | ❌ | Single region. Netflix's Open Connect / multi-region failover has no analogue here (and isn't warranted). |
-| Bot tier autoscaling across pods | 🟡 | In-process sharding works; multi-**pod** shard splitting (coordinated `SHARD_LIST`) is documented but not implemented (`k8s/README.md` caveats). |
+| Multi-region / geo-routing | 🟡 | Single region by default; the read-replica split + a CNPG replica-per-region pattern is documented (`docs/DATA.md`), but no automated geo-routing/failover orchestration ships. |
+| Bot tier autoscaling across pods | ✅ | Multi-**pod** sharding with coordinated, disjoint shard ranges (`src/lib/shardRange.ts`, `k8s/bot-statefulset.yaml`): ordinal × `SHARDS_PER_POD` → shard ids clipped to `TOTAL_SHARDS`. See `docs/SCALING_SHARDING.md`. |
 
 ### 4. Data & caching
 
@@ -68,7 +68,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Pluggable engine (embedded → networked) | ✅ | `DATABASE_URL` switches SQLite→Postgres with no code change — the "start simple, scale the data tier later" pattern. |
 | Shared cache layer | ✅ | `src/cache/search.ts` — in-memory or Redis, chosen by `REDIS_URL`; fail-soft (a cache error never breaks a search). TTL'd. The same "cache the expensive upstream call" Netflix does with EVCache. |
 | Connection pooling | ✅ | `pg` Pool in the Postgres driver. |
-| Read replicas / sharded DB / CQRS | ❌ | Single primary. No replicas, partitioning, or read/write split — not needed at this volume. |
+| Read replicas / sharded DB / CQRS | 🟡 | **Read replica + read/write split** done: `DATABASE_REPLICA_URL` routes heavy analytics reads to a replica (`src/db/driver.ts` `readDb`), with an HA cluster manifest (`k8s/postgres-ha.yaml`). DB partitioning / full CQRS not warranted at this volume. |
 
 ### 5. Resilience & reliability
 
@@ -80,7 +80,7 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 | Circuit breakers / bulkheads | ✅ | `lib/circuitBreaker.ts` fast-fails source resolution after repeated failures (+ a 30s timeout), then half-opens. |
 | Session migration on scale-in | ❌ | Removing a Lavalink pod drops its players (documented honestly in `k8s/README.md`). Netflix-grade drain-then-terminate is absent. |
 | Chaos engineering | ✅ | Chaos Mesh experiments (pod-kill, network-delay) + a game-day runbook in `chaos/`. |
-| Defined SLIs/SLOs/error budgets | ❌ | No reliability targets are measured. |
+| Defined SLIs/SLOs/error budgets | ✅ | Command-success, latency & playback-availability SLOs with 28d error budgets and **multi-window burn-rate** alerts (`docs/SLO.md`, `k8s/monitoring/prometheus-slo-rules.yaml`). |
 
 ### 6. Observability
 
@@ -97,9 +97,9 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 |---|---|---|
 | CI: lint + typecheck + image build | ✅ | `.github/workflows/ci.yml` runs ESLint, `tsc --noEmit`, and a Docker build on every push/PR. |
 | Static typing end-to-end | ✅ | TypeScript strict mode. |
-| Automated tests (unit/integration) | ✅ | `node:test` suite (34): pure helpers, card structure, loop/circuit-breaker logic, **DB-repository integration** tests, command registry. CI **coverage gate** (~73% lines). **Remaining:** broader command-handler tests, load testing. |
-| Load / soak testing | ❌ | No synthetic load harness to validate the HPA thresholds. |
-| Continuous **Deployment** (CD) | 🟡 | `release.yml` builds + pushes the image to GHCR on `v*` tags. **Remaining:** canary/blue-green (needs multi-replica bot). |
+| Automated tests (unit/integration) | ✅ | `node:test` suite (49): pure helpers, card structure, loop/circuit-breaker logic, **DB-repository integration** tests, command registry, the **SGNS recommender** (learns cluster structure), and **shard-range** maths. CI **coverage gate** (~75% lines). **Remaining:** broader command-handler tests. |
+| Load / soak testing | ✅ | k6 harnesses (`load/`) for the public API with SLO-mirroring thresholds + a long soak; HPA-validation guidance in `load/README.md`. |
+| Continuous **Deployment** (CD) | ✅ | `release.yml` builds + pushes to GHCR on `v*` tags; **canary→full** via the StatefulSet `RollingUpdate` partition (`docs/SCALING_SHARDING.md`). |
 
 ### 8. Security
 
@@ -107,25 +107,27 @@ Legend: ✅ have · 🟡 partial / stubbed · ❌ missing
 |---|---|---|
 | Secrets hygiene | ✅ | Credentials only in gitignored `.env` / K8s `Secret`; `.example` templates tracked; least-privilege gateway intents. |
 | Non-root container, minimal image | ✅ | Runs as `node` user on a slim base (`Dockerfile`). |
-| Secret management & rotation | 🟡 | Plain K8s Secret; README points to Sealed Secrets / External Secrets but rotation isn't automated. |
-| Network policies / RBAC / image scanning | ✅ | Trivy image scan in CI, `k8s/network-policy.yaml` default-deny, pod `securityContext` (non-root, dropped caps, seccomp). **Remaining:** automated secret rotation. |
+| Secret management & rotation | ✅ | External Secrets Operator manifest (`k8s/external-secrets.yaml`) syncs `elfaria-secrets` from an external manager on a `refreshInterval` (+ Reloader to roll pods), so rotation propagates automatically. |
+| Network policies / RBAC / image scanning | ✅ | Trivy image scan in CI, `k8s/network-policy.yaml` default-deny, pod `securityContext` (non-root, dropped caps, seccomp). |
 
 ### 9. Data science & ML
 
 | Capability | Status | Evidence / gap |
 |---|---|---|
-| Recommendation / autoplay | 🟡 | Co-play **collaborative filter** on the event stream (`analytics/recommend.ts`) with a YouTube-mix fallback. Learns from data, but not yet a trained model. |
+| Recommendation / autoplay | ✅ | **Trained item2vec/SGNS** embeddings (`src/ml/`, `npm run train`) served on boot and queried first by autoplay, then a co-play **collaborative filter** (`analytics/recommend.ts`), then a YouTube-mix fallback. Plus an autoplay **buffer** + **/reroll**. |
 | Event/analytics pipeline | ✅ | Structured play/skip/search events to the DB, optionally published to **Kafka** (`analytics/events.ts`). Powers the recommender + public stats API. |
 | Experimentation (A/B) | ❌ | No experiment framework. |
 | Event/analytics pipeline | ✅ | Structured events → DB (+ optional Kafka), `analytics/events.ts`. |
-| Recommendation (learned) | 🟡 | Co-play collaborative filter (`analytics/recommend.ts`); a trained model is the next step (needs accumulated data). |
+| Recommendation (learned) | ✅ | item2vec/SGNS model trained offline on listening sessions (`scripts/train-recommender.ts`), loaded for inference and used ahead of the co-play CF. Tests prove it learns genre clusters. |
 | Capacity forecasting / anomaly detection | ❌ | Scaling is reactive (CPU threshold), not predictive. No forecasting on historical load. |
 
 ---
 
 ## The data-science angle, concretely
 
-Where a Netflix-style data practice *would* plug into Elfaria — and what it'd take:
+Where a Netflix-style data practice plugs into Elfaria. **Items 1 and 2 are now
+built** (the trained recommender + the event pipeline); 3 and 4 remain as the
+next data-driven steps:
 
 1. **Autoplay → learned recommender.** Today's heuristic could become a model
    trained on (skip, replay, queue-add) signals. Requires the event pipeline
@@ -158,21 +160,27 @@ config/secrets hygiene. Architecturally, it's shaped like the real thing.
 Most of the original gaps are now closed: ✅ metrics + tracing, ✅ dashboards +
 alerts, ✅ tests + coverage gate, ✅ event/analytics pipeline (+ Kafka), ✅
 circuit breaker, ✅ chaos experiments, ✅ image scanning + network policy + pod
-hardening, ✅ a public stats API, ✅ a co-play recommender, ✅ GDPR `/forget-me`
-+ retention. What genuinely remains (and is **not** a rewrite):
+hardening, ✅ a public stats API, ✅ GDPR `/forget-me` + retention. And the five
+items that were called out here as "what remains" are now done too:
 
-1. **A trained recommender (neural/embedding model)** — the co-play CF and the
-   event stream are the foundation; a learned model needs accumulated data and a
-   train/serve loop (offline training + an inference step).
-2. **SLIs/SLOs + error budgets** — the metrics exist; define targets and alert on
-   burn rate.
-3. **Multi-pod bot sharding** + **progressive delivery** (canary/blue-green).
-4. **Multi-region / Postgres HA / read replicas** — only when scale demands it.
-5. **Automated secret rotation** and **load/soak testing**.
+1. ✅ **Trained recommender** — item2vec/SGNS embeddings trained offline on
+   listening sessions and served for inference, queried first by autoplay
+   (`src/ml/`, `npm run train`).
+2. ✅ **SLIs/SLOs + error budgets** with multi-window burn-rate alerts
+   (`docs/SLO.md`).
+3. ✅ **Multi-pod bot sharding** (coordinated shard ranges) + **canary** rollouts
+   via the StatefulSet partition (`docs/SCALING_SHARDING.md`).
+4. ✅ **Postgres HA + read replicas** (`k8s/postgres-ha.yaml`, `DATABASE_REPLICA_URL`);
+   multi-region pattern documented in `docs/DATA.md`.
+5. ✅ **Automated secret rotation** (External Secrets) + **load/soak testing**
+   (k6, `load/`).
 
-The honest headline has shifted: Elfaria is now **built like a scalable system
-and operated like one too** — the remaining items are scale-and-maturity polish,
-not missing fundamentals. Progress is tracked in [ROADMAP.md](./ROADMAP.md).
+What's genuinely left is narrow: cross-pod presence aggregation, a black-box
+playback canary, broader command-handler tests, and true multi-region failover
+orchestration (warranted only at much larger scale). The honest headline: Elfaria
+is now **built like a scalable system and operated like one too**. Progress is
+tracked in [ROADMAP.md](./ROADMAP.md); the data architecture is in
+[DATA.md](./DATA.md).
 
 > Scope caveat: this is a design-level comparison. The scaling features are
 > verified to *function* (see README "Verifying the scale-out features"); they

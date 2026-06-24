@@ -31,16 +31,19 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
   - ✅ `node:test` suite (34) in CI: pure helpers, card structure, loop +
     circuit-breaker logic, **DB-repository integration** tests, command registry.
   - ✅ Coverage reporting + threshold **gate** (`npm run test:coverage`).
-  - ⬜ Broader command-handler tests with a mocked interaction; load/soak tests.
+  - ✅ Load/soak tests (k6) for the public API with SLO-mirroring thresholds
+    (`load/`), plus HPA-validation guidance.
+  - ⬜ Broader command-handler tests with a mocked interaction.
 
 - ✅ **3. Event / analytics pipeline** — *unblocks recommendations, dashboards, A/B.*
   - ✅ Structured play/skip/search events to the `events` table (`analytics/events.ts`).
   - ✅ Optional **Kafka** publish (KAFKA_BROKERS, `analytics/kafka.ts`).
   - ✅ Privacy: `/forget-me` erasure + `PRIVACY.md` + 90-day retention prune.
 
-- 🟡 **4. Continuous Deployment** — *CI builds, release publishes.*
+- ✅ **4. Continuous Deployment** — *CI builds, release publishes.*
   - ✅ Push the image to GHCR on a `v*` tag (`.github/workflows/release.yml`).
-  - ⬜ Progressive rollout (canary/blue-green) — needs the multi-replica bot.
+  - ✅ Progressive rollout: multi-pod StatefulSet + `RollingUpdate` partition for
+    canary→full promotion (`k8s/bot-statefulset.yaml`, `docs/SCALING_SHARDING.md`).
 
 - 🟡 **5. Resilience depth**
   - ✅ Timeout (30s) + circuit breaker around source resolution
@@ -52,20 +55,29 @@ Legend: ✅ done · 🟡 in progress / partial · ⬜ not started
   - ✅ Chaos experiments + game-day runbook (`chaos/` — Chaos Mesh pod-kill &
     network-delay). Documented in `docs/RELIABILITY.md`.
 
-- 🟡 **6. Autoplay: heuristic → personalised/learned**
+- ✅ **6. Autoplay: heuristic → personalised/learned**
   - ✅ Heuristic autoplay: YouTube mix radio for all sources, anti-repeat.
   - ✅ Preference signal captured (the event pipeline) + a **co-play collaborative
     filter** (`analytics/recommend.ts`), tried before the YouTube-mix fallback.
   - ✅ `/forget-me` erasure (per-user data).
-  - ⬜ A trained model (embeddings / neural recommender) on the accumulated data —
-    needs an offline train + inference-serve loop (the data is now being collected).
+  - ✅ **Trained model** — item2vec/SGNS embeddings (`src/ml/`), offline trainer
+    (`npm run train`) + inference-serve loaded on boot; autoplay uses it first.
+  - ✅ Autoplay **buffer** (fills several tracks ahead) + **/reroll** randomiser.
 
-- 🟡 **7. Security hardening**
+- ✅ **7. Security hardening**
   - ✅ Image scanning (Trivy) in CI — fails on fixable HIGH/CRITICAL CVEs.
   - ✅ K8s `NetworkPolicy` (default-deny) + pod `securityContext` (non-root, dropped
     caps, seccomp).
   - ✅ Published privacy policy (`PRIVACY.md`) + data-retention prune.
-  - ⬜ Automated secret rotation (Sealed Secrets / External Secrets Operator).
+  - ✅ Automated secret rotation (External Secrets Operator, `k8s/external-secrets.yaml`).
+
+- ✅ **8. Service levels & scale-out**
+  - ✅ SLIs/SLOs + error budgets + multi-window burn-rate alerts (`docs/SLO.md`,
+    `k8s/monitoring/prometheus-slo-rules.yaml`).
+  - ✅ Multi-pod sharding with coordinated shard ranges (`src/lib/shardRange.ts`,
+    `k8s/bot-statefulset.yaml`).
+  - ✅ Postgres HA + read replicas (`k8s/postgres-ha.yaml`, `DATABASE_REPLICA_URL`);
+    multi-region guidance in `docs/DATA.md`.
 
 ---
 
@@ -104,12 +116,20 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   (`/api/*`), `/forget-me` + PRIVACY.md + retention, Trivy scan + NetworkPolicy +
   pod hardening. Commands are now GLOBAL by default (`deploy:guild` for dev).
 - Fixed: autoplay/skip now advances via autoplay instead of stopping; /lyrics
-  switched from the dead lyrics.ovh to LRCLIB.
+  switched from the dead lyrics.ovh to LRCLIB (now also parses "Artist - Title").
+- Dynamic **seek dropdown** (10s steps that scale with track length, ≤25 options).
+- Commands now **auto-register globally on boot** (AUTO_DEPLOY_COMMANDS) — no
+  manual deploy step; only the pod owning shard 0 does it.
+- **Trained item2vec recommender** (`src/ml/`, `npm run train`) used first by
+  autoplay; **autoplay buffer** + **/reroll**. **SLIs/SLOs + burn-rate alerts**
+  (`docs/SLO.md`). **Multi-pod sharding** + canary partition rollouts. **Postgres
+  HA + read replicas** (`DATABASE_REPLICA_URL`). **External Secrets** rotation.
+  **k6 load/soak** harness. Full **data architecture** doc (`docs/DATA.md`).
 
 **Still genuinely remaining (honest)**
-- Trained neural recommender (data now accumulating); SLIs/SLOs + error budgets;
-  multi-pod bot sharding + canary deploys; multi-region / Postgres HA; automated
-  secret rotation; load/soak testing.
+- Cross-pod presence aggregation (per-pod count under multi-pod sharding — needs
+  a shared counter via Redis); a true black-box playback canary for the SLO.
+- Broader command-handler tests with a mocked interaction.
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

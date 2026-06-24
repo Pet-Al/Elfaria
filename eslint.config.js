@@ -3,7 +3,9 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'data/**'],
+    // load/ holds k6 scripts that run in the k6 runtime (with globals like
+    // __ENV), not Node — linting them with the Node/TS config is meaningless.
+    ignores: ['dist/**', 'node_modules/**', 'data/**', 'load/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
