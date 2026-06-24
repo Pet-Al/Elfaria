@@ -1,0 +1,48 @@
+# Predictive autoscaling for Lavalink via KEDA (doc roadmap "next big 5").
+#
+# The plain HPA (k8s/lavalink-hpa.yaml) is REACTIVE — it scales after players +
+# CPU rise. This KEDA ScaledObject adds a PREDICTIVE trigger: it scales on the
+# `predict_linear` forecast of active players (k8s/monitoring/prometheus-forecast-
+# rules.yaml), so capacity comes up BEFORE the diurnal evening spike. KEDA takes
+# the max across triggers, and the second trigger keeps reacting to ACTUAL load
+# as a safety net.
+#
+# Prereqs:
+#   • Install KEDA: https://keda.sh/docs/latest/deploy/
+#   • The forecast recording rule must be loaded (prometheus-forecast-rules.yaml).
+#   • Point serverAddress at your Prometheus (kube-prometheus-stack default shown).
+# NOTE: KEDA manages its OWN HPA for the target, so use EITHER this OR
+# lavalink-hpa.yaml — not both on the same StatefulSet.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: lavalink-predictive
+  namespace: elfaria
+spec:
+  scaleTargetRef:
+    name: lavalink
+    kind: StatefulSet
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  # Hold a scale-up for a few minutes before scaling back, so we don't flap.
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 600
+  triggers:
+    # 1) PREDICTIVE — desired = ceil(predicted_players_in_30m / 50).
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+        metricName: elfaria_active_players_predicted
+        query: clamp_min(elfaria:active_players:predict_30m, 0)
+        threshold: '50' # ~50 players per Lavalink pod
+    # 2) REACTIVE safety net — desired = ceil(current_players / 75).
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+        metricName: elfaria_active_players_now
+        query: elfaria_active_players
+        threshold: '75'

@@ -1,0 +1,84 @@
+# Nightly recommender training (doc roadmap "next big 5": automated train/serve).
+#
+# Runs `npm run train` on a schedule against the shared Postgres, writing the
+# item2vec model artifact to a shared volume. The bot reloads the artifact every
+# few hours (startRecommenderReload), so a fresh model is picked up live — no
+# redeploy. Model freshness/size are exported as elfaria_recommender_* metrics.
+#
+# WIRING (important): the model file must be on a volume BOTH this Job and the
+# bot mount. Use a ReadWriteMany PVC (so both can mount it at once) and:
+#   • set RECOMMENDER_MODEL_PATH=/models/recommender.json on the bot, and
+#   • add the same `models` volume + mount to the bot Deployment/StatefulSet.
+# The trainer imports the app config, so it needs the same secret env even though
+# it never connects to Discord.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elfaria-models
+  namespace: elfaria
+spec:
+  accessModes: ['ReadWriteMany'] # so the bot + the Job can both mount it
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: <your-RWX-class>   # e.g. efs / azurefile / nfs
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: elfaria-train
+  namespace: elfaria
+spec:
+  schedule: '0 4 * * *' # nightly at 04:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: train
+              image: ghcr.io/pet-al/elfaria:latest
+              command: ['npm', 'run', 'train']
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ['ALL']
+              env:
+                - name: RECOMMENDER_MODEL_PATH
+                  value: /models/recommender.json
+                - name: METRICS_ENABLED
+                  value: 'false'
+                # The trainer imports the app config, which validates these — even
+                # though training never logs into Discord.
+                - name: DISCORD_TOKEN
+                  valueFrom: { secretKeyRef: { name: elfaria-secrets, key: DISCORD_TOKEN } }
+                - name: DISCORD_CLIENT_ID
+                  valueFrom: { secretKeyRef: { name: elfaria-secrets, key: DISCORD_CLIENT_ID } }
+                - name: POSTGRES_PASSWORD
+                  valueFrom: { secretKeyRef: { name: elfaria-secrets, key: POSTGRES_PASSWORD } }
+                - name: DATABASE_URL
+                  value: 'postgres://elfaria:$(POSTGRES_PASSWORD)@postgres:5432/elfaria'
+                # Train from the read replica if you have one (keeps load off the primary).
+                # - name: DATABASE_REPLICA_URL
+                #   value: 'postgres://elfaria:$(POSTGRES_PASSWORD)@elfaria-pg-ro:5432/elfaria'
+              volumeMounts:
+                - name: models
+                  mountPath: /models
+              resources:
+                requests: { cpu: '250m', memory: 512Mi }
+                limits: { cpu: '1', memory: 1Gi }
+          volumes:
+            - name: models
+              persistentVolumeClaim:
+                claimName: elfaria-models

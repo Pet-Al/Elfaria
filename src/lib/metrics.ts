@@ -76,6 +76,27 @@ export const playbackProbeLatency = new Gauge({
   registers: [registry],
 });
 
+/** End-to-end PLAY canary: 1 if the bot actually played audio (position advanced). */
+export const playCanarySuccess = new Gauge({
+  name: 'elfaria_play_canary_success',
+  help: 'Whether the most recent end-to-end PLAY canary streamed audio (1/0).',
+  registers: [registry],
+});
+
+/** Loaded recommender model: number of track vectors (0 = no model / cold start). */
+export const recommenderTracks = new Gauge({
+  name: 'elfaria_recommender_tracks',
+  help: 'Number of track embeddings in the currently-loaded recommender model.',
+  registers: [registry],
+});
+
+/** Unix seconds the loaded recommender model was trained at (0 if none). */
+export const recommenderTrainedAt = new Gauge({
+  name: 'elfaria_recommender_trained_timestamp_seconds',
+  help: 'When the currently-loaded recommender model was trained (unix seconds).',
+  registers: [registry],
+});
+
 /** Live player count — set on scrape from the Lavalink manager. */
 const activePlayers = new Gauge({
   name: 'elfaria_active_players',

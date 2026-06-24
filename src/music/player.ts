@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { recordEvent } from '../analytics/events.js';
 import { recordPlay } from '../db/history.js';
 import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
+import { type SyncedLine, currentLine, fetchSyncedLyrics } from '../lib/lyrics.js';
 import { logger } from '../lib/logger.js';
 import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
@@ -34,14 +35,17 @@ const MIN_EDIT_INTERVAL_MS = 3_000;
 
 const V2 = { flags: MessageFlags.IsComponentsV2 } as const;
 
-/** Card options describing the current player state (queue, volume, loop). */
+/** Card options describing the current player state (queue, volume, loop, lyric line). */
 function panelOptions(player: Player, positionMs?: number): CardOptions {
+  const synced = player.get<SyncedLine[]>('syncedLyrics');
   return {
     positionMs,
     volume: player.volume,
     loopState: loopStateOf(player),
     upNext: player.queue.tracks.slice(0, 3).map((t) => t.info?.title ?? 'Unknown'),
     queueLength: player.queue.tracks.length,
+    lyricLine:
+      synced && positionMs !== undefined ? (currentLine(synced, positionMs) ?? undefined) : undefined,
   };
 }
 
@@ -188,6 +192,18 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       clearPauseTimer(player);
       clearPanelExpiry(player.guildId); // a new track is live again
       player.set('npFinished', false);
+
+      // Fetch timed (synced) lyrics for the card — best-effort, off the hot path.
+      player.set('syncedLyrics', undefined);
+      if (track.info.title && !track.info.isStream) {
+        void fetchSyncedLyrics(track.info.author ?? '', track.info.title).then((lines) => {
+          // Only apply if this is still the track playing (the fetch is async).
+          if (lines && player.queue.current?.info.identifier === track.info.identifier) {
+            player.set('syncedLyrics', lines);
+            void refreshPanel(player, true);
+          }
+        });
+      }
 
       if (track.info.uri) {
         const requester = track.requester as { id?: string } | undefined;

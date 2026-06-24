@@ -139,6 +139,7 @@ PII-free**, so it's safe to expose publicly:
 
 | Endpoint | Returns | Source |
 |----------|---------|--------|
+| `GET /` (or `/dashboard`) | a small read-only **HTML dashboard** (auto-refreshing) | the endpoints below |
 | `GET /api/health` | `{status, uptimeSeconds}` | process |
 | `GET /api/stats` | `{guilds, activePlayers, connectedNodes, uptimeSeconds}` | live Lavalink/gateway |
 | `GET /api/top-tracks` | `{tracks:[{title, uri, author, plays}]}` (top 10) | `events` via **readDb** |

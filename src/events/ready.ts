@@ -7,9 +7,10 @@ import { clusterGuildCount, publishLocalCount, shardKey } from '../lib/clusterCo
 import { reconcileGlobalCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
+import { startPlayCanary } from '../lib/playCanary.js';
 import { startPlaybackProbe } from '../lib/playbackProbe.js';
 import type { BotEvent } from '../lib/types.js';
-import { loadRecommender } from '../ml/recommender.js';
+import { loadRecommender, startRecommenderReload } from '../ml/recommender.js';
 import { expireStalePanels } from '../music/panelStore.js';
 import { autoRejoin247 } from '../music/rejoin.js';
 
@@ -107,9 +108,12 @@ export const ready: BotEvent<Events.ClientReady> = {
     startMetricsServer(elfaria);
     startApiServer(elfaria);
     startPlaybackProbe(elfaria); // black-box source-resolve health (feeds the SLO)
+    startPlayCanary(elfaria); // end-to-end PLAY canary (opt-in, staging VC)
 
-    // Load the trained recommender if an artifact exists (fail-soft → heuristics).
+    // Load the trained recommender if an artifact exists (fail-soft → heuristics),
+    // and reload periodically so a nightly retrain is picked up without a restart.
     void loadRecommender();
+    startRecommenderReload();
 
     // Retire any now-playing panels left "live" by a previous (crashed) process.
     void expireStalePanels(client);

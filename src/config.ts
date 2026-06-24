@@ -208,10 +208,22 @@ export const config = {
     topic: optional('KAFKA_TOPIC', 'elfaria.events'),
   },
 
-  // Read-only public stats API (doc roadmap). Off by default; aggregate, no PII.
+  // Read-only public stats API + web dashboard (doc roadmap). Off by default;
+  // aggregate, no PII. Serves a small HTML dashboard at / when enabled.
   api: {
     enabled: optional('API_ENABLED', 'false') === 'true',
     port: intOption('API_PORT', 8080),
+  },
+
+  // End-to-end PLAY canary (doc roadmap). Opt-in: set a DEDICATED staging guild +
+  // empty voice channel; the bot periodically joins, plays a known track, checks
+  // the position actually advances (real audio), then leaves. DO NOT point this
+  // at a channel people use — it will interrupt playback there.
+  canary: {
+    guildId: optional('CANARY_GUILD_ID', ''),
+    voiceChannelId: optional('CANARY_VOICE_CHANNEL_ID', ''),
+    textChannelId: optional('CANARY_TEXT_CHANNEL_ID', ''),
+    query: optional('CANARY_QUERY', 'ytsearch:lofi'),
   },
 
   // Bot owner — may use the owner-only /admin toggles (retention, /forget-me).

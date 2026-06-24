@@ -1,8 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
+import { recommenderTrainedAt, recommenderTracks } from '../lib/metrics.js';
 import { type SgnsModel, mostSimilar } from './sgns.js';
 import type { TrackMeta } from './dataset.js';
+
+/** Re-load the model on this cadence so a nightly retrain is picked up live. */
+const RELOAD_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Inference-serve side of the trained recommender (doc roadmap #6). The offline
@@ -61,6 +65,8 @@ export async function loadRecommender(path = config.recommender.modelPath): Prom
     model = { dim: artifact.dim, vectors };
     meta = new Map(Object.entries(artifact.meta ?? {}));
     loadedAt = artifact.trainedAt ?? null;
+    recommenderTracks.set(vectors.size);
+    recommenderTrainedAt.set(loadedAt ? Math.floor(Date.parse(loadedAt) / 1000) || 0 : 0);
     logger.info(
       { count: vectors.size, dim: artifact.dim, trainedAt: loadedAt },
       'recommender model loaded',
@@ -76,6 +82,14 @@ export async function loadRecommender(path = config.recommender.modelPath): Prom
     }
     return false;
   }
+}
+
+/**
+ * Periodically reload the model so a nightly retrain (the train CronJob writing
+ * to the shared artifact path) is picked up without a restart. Fail-soft.
+ */
+export function startRecommenderReload(intervalMs = RELOAD_INTERVAL_MS): void {
+  setInterval(() => void loadRecommender(), intervalMs).unref?.();
 }
 
 /**

@@ -244,6 +244,8 @@ export interface CardOptions {
   upNext?: string[];
   /** Total upcoming count, for the "+N more" hint. */
   queueLength?: number;
+  /** The current line of synced lyrics (LRCLIB), shown under the progress bar. */
+  lyricLine?: string;
 }
 
 /** The modern Components V2 now-playing card. Send with MessageFlags.IsComponentsV2. */
@@ -258,6 +260,7 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
     loopState,
     upNext,
     queueLength,
+    lyricLine,
   } = options;
   const requester = track.requester as { username?: string } | undefined;
   const withProgress = positionMs !== undefined;
@@ -305,6 +308,13 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
       new TextDisplayBuilder().setContent(
         progressBar(positionMs, track.info.duration, track.info.isStream),
       ),
+    );
+  }
+
+  // Current synced-lyrics line (LRCLIB), updated on each card refresh.
+  if (lyricLine) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`🎤 *${lyricLine.slice(0, 180)}*`),
     );
   }
 

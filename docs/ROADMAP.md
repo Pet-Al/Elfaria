@@ -147,22 +147,23 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   autoscaling** (`predict_linear` forecast rules) + **anomaly detection** (player
   drop + z-score command-rate); **broader command-handler tests**.
 
-**Still genuinely remaining (honest)**
-- A full end-to-end *play* canary into a real voice channel (the probe resolves
-  but doesn't play); cross-region active/active failover; wiring the forecast to
-  actually autoscale (KEDA) rather than advise.
+- Latest batch (the proposed "next big 5", all shipped): **KEDA predictive
+  autoscaling** (`k8s/keda-scaledobject.yaml`); **end-to-end play canary**
+  (`lib/playCanary.ts`, joins a staging VC + verifies position advances);
+  **web dashboard** (`/` on the public API); **nightly train/serve** CronJob
+  (`k8s/train-cronjob.yaml`) + recommender hot-reload + model metrics;
+  **synced lyrics** on the now-playing card (`lib/lyrics.ts`).
 
-**Next big 5 (when you're ready)**
-1. **Wire the forecast to autoscale** — a KEDA `ScaledObject` driven by
-   `elfaria:active_players:predict_30m` so capacity scales *ahead* of demand.
-2. **End-to-end play canary** — a dedicated staging guild/VC the bot joins and
-   plays a known track in, verifying real audio (not just resolve) for the SLO.
-3. **Web dashboard** — a small read-only UI over the public API (now-playing per
-   guild, top tracks, queue) — the API already exposes the aggregates.
-4. **Train/serve loop automation** — a nightly CronJob that runs `npm run train`
-   and hot-reloads the recommender artifact, with model metrics tracked over time.
-5. **Lyrics-synced display** — use Lavalink's LyricsEvent / LRCLIB timed lyrics to
-   highlight the current line on the now-playing card.
+**Still genuinely remaining (honest)**
+- Cross-region active/active failover (only at much larger scale); per-line
+  lyric scrolling needs a faster card refresh than the global API budget allows
+  (it updates at the refresh cadence, ~15s, not per line); the play canary needs
+  a dedicated staging guild to be useful.
+
+**Possible next directions (not committed)**
+- Slash-command i18n / localization; a richer web dashboard (per-guild
+  now-playing, queue control) behind auth; user-level taste profiles for the
+  recommender; sponsor-block-style segment skipping; voice-activity "DJ handoff".
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

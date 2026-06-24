@@ -40,8 +40,9 @@ not the whole bot.
   songs change (unless the channel has moved on), so it doesn't spam.
 - **Now-playing controls**: ⏮️ back / ⏯️ / ⏭️ / ⏹️ / 📜 buttons, ⭐ favorite + 🔀
   shuffle, and **loop / volume / seek dropdowns** (the seek steps scale with the
-  track length). Finished/expired cards keep working **Replay + Favorite** (which
-  auto-grey after ~30 min), and a crashed bot's stale panels are retired on boot.
+  track length), plus **live synced lyrics** (the current line, from LRCLIB).
+  Finished/expired cards keep working **Replay + Favorite** (which auto-grey after
+  ~30 min), and a crashed bot's stale panels are retired on boot.
 - **History & replay**: `/history` is paged (10/page, jump dropdown + Prev/Next);
   `/replay [position]` replays any history entry (default: the most recent).
 - **Favorites**: ⭐ a track to save it, then `/favorites list|play` to revisit.
@@ -52,6 +53,10 @@ not the whole bot.
   on restart** (resuming lofi). It still leaves an empty channel unless `forever`.
 - **Filters**: `/filter` (session) with anti-clipping EQ; `/filter-save` persists
   a filter as the server default. **`/status`** and **`/help`** round it out.
+- **Ops & data**: a read-only **web dashboard** (`/` on the public API), a
+  **black-box play canary** that verifies real audio, **predictive autoscaling**
+  (forecast → KEDA), an **A/B framework**, and a nightly **train/serve** loop for
+  the recommender — see [docs/](./docs/).
 - **Audio filters/EQ** (`/filter`): bass boost, nightcore, vaporwave, 8D,
   karaoke, lowpass, and EQ presets — done by Lavalink, no quality cost on the bot.
 - **Multi-source** via Lavalink: YouTube, SoundCloud, Bandcamp, Twitch, Vimeo,

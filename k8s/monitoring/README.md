@@ -92,6 +92,12 @@ kubectl -n elfaria describe hpa lavalink
   on active players → an advisory "scale-up soon" / KEDA input) plus **anomaly**
   detection (sudden player-count drop; a z-score "command rate anomalously low"
   quiet-outage detector). Same apply + `release` label.
+- To turn the forecast into *actual* predictive autoscaling, apply
+  [`../keda-scaledobject.yaml`](../keda-scaledobject.yaml) (needs KEDA) — it scales
+  Lavalink on the forecast metric, with a reactive trigger as a safety net.
+- The recommender's freshness/size are exported too
+  (`elfaria_recommender_tracks`, `elfaria_recommender_trained_timestamp_seconds`);
+  the nightly trainer is [`../train-cronjob.yaml`](../train-cronjob.yaml).
 
 ## Until this is installed
 
