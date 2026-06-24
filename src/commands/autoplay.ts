@@ -1,8 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { setAppSetting } from '../db/appSettings.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
 import { clearAutoplayQueued, fillAutoplayBuffer } from '../music/autoplay.js';
-import { getPlayer } from '../music/QueueManager.js';
+import { autoplayKey, getPlayer } from '../music/QueueManager.js';
 import { refreshPanel } from '../music/player.js';
 
 /**
@@ -34,6 +35,8 @@ export const autoplay: Command = {
 
     const enabled = !player.get<boolean>('autoplay');
     player.set('autoplay', enabled);
+    // Persist per guild so it survives a restart / new player (applied in ensurePlayer).
+    void setAppSetting(autoplayKey(interaction.guildId!), enabled ? 'true' : 'false');
 
     if (enabled) {
       const seed = player.queue.current;

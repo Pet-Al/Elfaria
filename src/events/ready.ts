@@ -3,6 +3,7 @@ import { pruneOldData } from '../analytics/events.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { startApiServer } from '../lib/api.js';
+import { clusterGuildCount, publishLocalCount, shardKey } from '../lib/clusterCount.js';
 import { reconcileGlobalCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
@@ -52,15 +53,22 @@ const PRESENCE_REFRESH_MS = 10 * 60 * 1000;
  * accurate total; if a sibling shard isn't ready yet we fall back to local size.
  */
 async function guildCount(client: Client<true>): Promise<number> {
+  const local = client.guilds.cache.size;
+
+  // Single-pod ShardingManager: sum across this manager's shards via IPC.
   if (client.shard) {
     try {
       const counts = (await client.shard.fetchClientValues('guilds.cache.size')) as number[];
       return counts.reduce((sum, n) => sum + (n ?? 0), 0);
     } catch {
-      // a sibling shard may still be spawning — fall back to this shard's count
+      return local; // a sibling shard may still be spawning — use local
     }
   }
-  return client.guilds.cache.size;
+
+  // Multi-pod (or single process): publish this process's count and read the
+  // cluster-wide sum from Redis. With no Redis this is just `local` (unchanged).
+  await publishLocalCount(shardKey(), local);
+  return clusterGuildCount(local);
 }
 
 /** Set the Streaming presence to "music in N servers". Never throws. */

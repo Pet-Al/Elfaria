@@ -1,8 +1,12 @@
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import type { LavalinkManager, Player } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
+import { getBoolSetting } from '../db/appSettings.js';
 import { getGuildSettings } from '../db/guilds.js';
 import { autoPlayFunction } from './autoplay.js';
+
+/** app_settings key for a guild's persisted autoplay default. */
+export const autoplayKey = (guildId: string) => `autoplay:${guildId}`;
 
 /**
  * Queue/player helpers (doc §5).
@@ -45,6 +49,8 @@ export async function ensurePlayer(
       selfDeaf: true,
       volume: settings.defaultVolume,
     });
+    // Apply the guild's persisted autoplay preference (opt-in → defaults off).
+    player.set('autoplay', await getBoolSetting(autoplayKey(guildId), false).catch(() => false));
   }
   if (!player.connected) await player.connect();
   return player;

@@ -6,6 +6,7 @@ import { clear } from './clear.js';
 import { favorites } from './favorites.js';
 import { filter } from './filter.js';
 import { forgetme } from './forgetme.js';
+import { help } from './help.js';
 import { history } from './history.js';
 import { lofi } from './lofi.js';
 import { loop } from './loop.js';
@@ -66,6 +67,7 @@ export const commands: Command[] = [
   lyrics,
   forgetme,
   admin,
+  help,
 ];
 
 /** Populate the client's command Collection used by the router. */

@@ -6,6 +6,7 @@ import { instrumentCommand } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 import { handleButton, handleSelectMenu } from './buttons.js';
 import { handleHistoryButton, handleHistorySelect } from './historyComponents.js';
+import { handleQueueButton, handleQueueSelect } from './queueComponents.js';
 
 /**
  * The command router (doc §2). A single interactionCreate handler looks up the
@@ -66,6 +67,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
       try {
         if (interaction.customId.startsWith('np:')) await handleButton(interaction);
         else if (/^(hist|replay):/.test(interaction.customId)) await handleHistoryButton(interaction);
+        else if (interaction.customId.startsWith('q:')) await handleQueueButton(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'button handler failed');
       }
@@ -76,6 +78,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
       try {
         if (interaction.customId.startsWith('np:')) await handleSelectMenu(interaction);
         else if (/^(hist|replay):/.test(interaction.customId)) await handleHistorySelect(interaction);
+        else if (interaction.customId.startsWith('q:')) await handleQueueSelect(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'select handler failed');
       }
