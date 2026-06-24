@@ -7,6 +7,7 @@ import { recordEvent } from '../analytics/events.js';
 import { recordPlay } from '../db/history.js';
 import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
 import { logger } from '../lib/logger.js';
+import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
 import { forgetPanel, rememberPanel } from './panelStore.js';
@@ -214,6 +215,14 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         // Persist the live panel so it can be retired if this process dies before
         // the panel is cleanly greyed (crash/OOM/kill) — see panelStore.ts.
         void rememberPanel(player.guildId, message.channelId, message.id);
+      }
+
+      // Proactively top up the autoplay buffer so the picks appear in "up next"
+      // WHILE the current track plays — not only once the queue swaps to them.
+      if (player.get<boolean>('autoplay')) {
+        void fillAutoplayBuffer(player, track).then((added) => {
+          if (added > 0) void refreshPanel(player, true);
+        });
       }
     })
     .on('queueEnd', async (player) => {

@@ -178,6 +178,26 @@ export async function rerollAutoplay(player: Player, seed: Track): Promise<numbe
   return fillAutoplayBuffer(player, seed);
 }
 
+/**
+ * Remove every autoplay-queued track from the upcoming queue, keeping anything
+ * the user queued manually. Used when autoplay is toggled OFF so the user can
+ * play their own thing without the autoplay picks in the way. Returns how many
+ * were dequeued.
+ */
+export async function clearAutoplayQueued(player: Player): Promise<number> {
+  const queued = new Set(player.get<string[]>(QUEUED) ?? []);
+  if (queued.size === 0) return 0;
+
+  const upcoming = player.queue.tracks as Track[];
+  const keep = upcoming.filter((t) => !t.info.identifier || !queued.has(t.info.identifier));
+  const removed = upcoming.length - keep.length;
+
+  if (upcoming.length > 0) await player.queue.splice(0, upcoming.length);
+  if (keep.length > 0) await player.queue.add(keep);
+  player.set(QUEUED, []);
+  return removed;
+}
+
 /** Append an identifier to the rolling per-session "already autoplayed" set. */
 function rememberSeen(player: Player, identifier: string): void {
   const seen = player.get<string[]>(SEEN) ?? [];

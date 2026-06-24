@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Player, Track } from 'lavalink-client';
-import { fillAutoplayBuffer, rerollAutoplay } from './autoplay.js';
+import { clearAutoplayQueued, fillAutoplayBuffer, rerollAutoplay } from './autoplay.js';
 
 /** Minimal Track stub. `uri: ''` keeps tests off the DB (skips the co-play lookup). */
 function track(id: string): Track {
@@ -90,4 +90,21 @@ test('rerollAutoplay: keeps user-queued tracks, replaces only autoplay ones', as
   // The removed autoplay tracks are remembered as "seen" so they aren't re-picked.
   const seen = player.get<string[]>('autoplaySeen') ?? [];
   assert.ok(seen.includes('auto1') && seen.includes('auto2'));
+});
+
+test('clearAutoplayQueued: removes autoplay picks, keeps user-queued tracks', async () => {
+  const user = track('user-song');
+  const auto1 = track('auto1');
+  const auto2 = track('auto2');
+  const player = makePlayer({ tracks: [user, auto1, auto2], pool: [] });
+  player.set('autoplayQueued', ['auto1', 'auto2']);
+
+  const removed = await clearAutoplayQueued(player);
+
+  assert.equal(removed, 2);
+  assert.deepEqual(
+    player.queue.tracks.map((t) => t.info.identifier),
+    ['user-song'],
+  );
+  assert.deepEqual(player.get<string[]>('autoplayQueued'), []);
 });
