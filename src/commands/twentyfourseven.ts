@@ -4,18 +4,30 @@ import type { Command } from '../lib/types.js';
 import { getPlayer } from '../music/QueueManager.js';
 
 /**
- * /247 — toggle 24/7 mode: when the queue ends, the bot STAYS in the voice
- * channel instead of leaving, so you can keep adding tracks (or run a lofi
- * stream) without it disconnecting. The flag lives on the player; the queueEnd
- * handler in music/player.ts cancels the queue-empty disconnect when it's on.
+ * /24-7 — keep the bot in voice when the queue ends. The `mode` chooses what
+ * happens when the channel empties:
+ *   • until-empty (default): stay through queue-end, but LEAVE if nobody's left.
+ *   • forever: stay no matter what — even an empty channel (set-and-forget).
+ *   • off: normal (leave shortly after the queue ends).
  *
- * It deliberately does NOT override the empty-channel rule: if everyone leaves
- * the voice channel, the bot still departs (it won't sit playing to nobody).
+ * With no `mode`, it toggles between until-empty and off. Flags live on the
+ * player: `247` (stay on queue-end) and `247Forever` (also ignore empty-channel,
+ * honoured in events/voiceStateUpdate.ts).
  */
 export const twentyfourseven: Command = {
   data: new SlashCommandBuilder()
-    .setName('247')
-    .setDescription('Toggle 24/7 mode (stay in voice when the queue ends).'),
+    .setName('24-7')
+    .setDescription('Stay in voice when the queue ends (24/7 mode).')
+    .addStringOption((opt) =>
+      opt
+        .setName('mode')
+        .setDescription('How long to stay (default: toggle until-empty).')
+        .addChoices(
+          { name: 'until-empty — stay, but leave if the channel empties', value: 'until-empty' },
+          { name: 'forever — stay even in an empty channel', value: 'forever' },
+          { name: 'off', value: 'off' },
+        ),
+    ),
   async execute(interaction) {
     const voice = await getVoiceContext(interaction);
     if (!voice) return;
@@ -30,20 +42,29 @@ export const twentyfourseven: Command = {
       return;
     }
 
-    const enabled = !player.get<boolean>('247');
-    player.set('247', enabled);
-    if (enabled) {
-      // Cancel any pending queue-empty disconnect that may already be ticking.
-      const pending = player.get<NodeJS.Timeout | undefined>('internal_queueempty');
-      if (pending) clearTimeout(pending);
-      player.set('internal_queueempty', undefined);
+    // No mode → toggle between until-empty and off.
+    const requested = interaction.options.getString('mode');
+    const mode = requested ?? (player.get<boolean>('247') ? 'off' : 'until-empty');
+
+    if (mode === 'off') {
+      player.set('247', false);
+      player.set('247Forever', false);
+      await replyOk(interaction, '⏹️ **24/7 off** — I’ll leave shortly after the queue ends.');
+      return;
     }
+
+    player.set('247', true);
+    player.set('247Forever', mode === 'forever');
+    // Cancel any queue-empty disconnect that may already be ticking.
+    const pending = player.get<NodeJS.Timeout | undefined>('internal_queueempty');
+    if (pending) clearTimeout(pending);
+    player.set('internal_queueempty', undefined);
 
     await replyOk(
       interaction,
-      enabled
-        ? '♾️ **24/7 mode on** — I’ll stay in the channel when the queue ends (but still leave if everyone does).'
-        : '⏹️ **24/7 mode off** — I’ll leave shortly after the queue ends.',
+      mode === 'forever'
+        ? '♾️ **24/7: forever** — I’ll stay in the channel no matter what (even if empty). Use `/24-7 mode:off` to stop.'
+        : '♾️ **24/7: until-empty** — I’ll stay when the queue ends, but leave if everyone does.',
     );
   },
 };

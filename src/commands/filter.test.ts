@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { EQ_PRESETS, MAX_BOOST } from './filter.js';
+import { EQ_PRESETS, MAX_BOOST } from '../music/filters.js';
 
 /**
  * The "filters are staticky" fix: every EQ preset must keep its boosts small so

@@ -10,7 +10,7 @@ import { logger } from '../lib/logger.js';
 import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
-import { forgetPanel, rememberPanel } from './panelStore.js';
+import { armPanelExpiry, clearPanelExpiry, forgetPanel, rememberPanel } from './panelStore.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
@@ -185,6 +185,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       await settleLoopOnce(player, track.info.identifier); // disarm one-shot loops
       clearTimer(player);
       clearPauseTimer(player);
+      clearPanelExpiry(player.guildId); // a new track is live again
       player.set('npFinished', false);
 
       if (track.info.uri) {
@@ -252,7 +253,10 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
           accentColor: cachedAccentColor(track.info.artworkUrl),
         }),
       ]);
-      if (message) player.set('npMessage', message);
+      if (message) {
+        player.set('npMessage', message);
+        armPanelExpiry(player.guildId, message); // grey Replay/Favorite after ~30 min
+      }
       // The final card's Replay/Favorite work standalone — no need to retire it.
       void forgetPanel(player.guildId);
     })
@@ -304,7 +308,10 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       const track = player.get<Track | undefined>('npTrack');
       player.set('npMessage', undefined);
       player.set('npTrack', undefined);
-      if (message && track) void greyPanel(message, track, true);
+      if (message && track) {
+        void greyPanel(message, track, true);
+        armPanelExpiry(player.guildId, message); // expire Replay/Favorite after ~30 min
+      }
     });
 }
 

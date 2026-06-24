@@ -3,8 +3,10 @@ import type { Command } from '../lib/types.js';
 import { admin } from './admin.js';
 import { autoplay } from './autoplay.js';
 import { clear } from './clear.js';
+import { dequeue } from './dequeue.js';
 import { favorites } from './favorites.js';
 import { filter } from './filter.js';
+import { filtersave } from './filtersave.js';
 import { forgetme } from './forgetme.js';
 import { help } from './help.js';
 import { history } from './history.js';
@@ -27,6 +29,7 @@ import { settings } from './settings.js';
 import { shuffle } from './shuffle.js';
 import { skip } from './skip.js';
 import { skipto } from './skipto.js';
+import { status } from './status.js';
 import { stop } from './stop.js';
 import { summon } from './summon.js';
 import { twentyfourseven } from './twentyfourseven.js';
@@ -58,9 +61,12 @@ export const commands: Command[] = [
   playlist,
   autoplay,
   reroll,
+  dequeue,
   lofi,
   twentyfourseven,
   filter,
+  filtersave,
+  status,
   history,
   replay,
   favorites,

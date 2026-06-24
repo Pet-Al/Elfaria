@@ -18,7 +18,16 @@ import { refreshPanel } from '../music/player.js';
 export const autoplay: Command = {
   data: new SlashCommandBuilder()
     .setName('autoplay')
-    .setDescription('Toggle autoplay (keep playing related tracks when the queue ends).'),
+    .setDescription('Toggle autoplay (keep playing related tracks when the queue ends).')
+    .addStringOption((opt) =>
+      opt
+        .setName('when-off')
+        .setDescription('When turning OFF: dequeue the autoplay picks (default) or keep them.')
+        .addChoices(
+          { name: 'dequeue — remove the autoplay picks (default)', value: 'dequeue' },
+          { name: 'keep — just stop adding more', value: 'keep' },
+        ),
+    ),
   async execute(interaction) {
     const voice = await getVoiceContext(interaction);
     if (!voice) return;
@@ -49,13 +58,17 @@ export const autoplay: Command = {
           : '♾️ Autoplay **enabled**.',
       );
     } else {
-      const removed = await clearAutoplayQueued(player);
+      // The when-off param only takes effect on this on→off transition.
+      const keep = interaction.options.getString('when-off') === 'keep';
+      const removed = keep ? 0 : await clearAutoplayQueued(player);
       void refreshPanel(player, true);
       await replyOk(
         interaction,
-        removed > 0
-          ? `⏹️ Autoplay **disabled** — removed **${removed}** autoplay track${removed === 1 ? '' : 's'} from the queue.`
-          : '⏹️ Autoplay **disabled**.',
+        keep
+          ? '⏹️ Autoplay **disabled** — kept the already-queued picks.'
+          : removed > 0
+            ? `⏹️ Autoplay **disabled** — removed **${removed}** autoplay track${removed === 1 ? '' : 's'} from the queue.`
+            : '⏹️ Autoplay **disabled**.',
       );
     }
   },

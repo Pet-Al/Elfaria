@@ -2,6 +2,7 @@ import {
   type APIMessageTopLevelComponent,
   type Client,
   ComponentType,
+  type Message,
   MessageFlags,
 } from 'discord.js';
 import {
@@ -40,6 +41,41 @@ export async function rememberPanel(
 /** Forget a guild's panel ref (called once the panel becomes a final/greyed card). */
 export async function forgetPanel(guildId: string): Promise<void> {
   await deleteAppSetting(key(guildId)).catch(() => undefined);
+}
+
+// ── Time-based expiry of a finished card's Replay/Favorite buttons ────────────
+const EXPIRY_MS = 30 * 60 * 1000;
+const expiryTimers = new Map<string, NodeJS.Timeout>();
+
+/** Cancel a guild's pending button-expiry (e.g. a new track went live). */
+export function clearPanelExpiry(guildId: string): void {
+  const timer = expiryTimers.get(guildId);
+  if (timer) clearTimeout(timer);
+  expiryTimers.delete(guildId);
+}
+
+/** Grey out a finished card's remaining buttons after EXPIRY_MS (~30 min). */
+export function armPanelExpiry(guildId: string, message: Message): void {
+  clearPanelExpiry(guildId);
+  const timer = setTimeout(() => {
+    expiryTimers.delete(guildId);
+    void expireMessage(message);
+  }, EXPIRY_MS);
+  timer.unref?.(); // don't keep the process alive just for this
+  expiryTimers.set(guildId, timer);
+}
+
+async function expireMessage(message: Message): Promise<void> {
+  try {
+    const components = message.components.map((c) => c.toJSON());
+    disableAll(components as { type: number; disabled?: boolean; components?: unknown[] }[]);
+    await message.edit({
+      flags: message.flags.has(MessageFlags.IsComponentsV2) ? MessageFlags.IsComponentsV2 : undefined,
+      components: components as APIMessageTopLevelComponent[],
+    });
+  } catch {
+    // message gone / not editable — nothing to do
+  }
 }
 
 /** Disable every interactive component in a message's component JSON, in place. */

@@ -1,12 +1,15 @@
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import type { LavalinkManager, Player } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
-import { getBoolSetting } from '../db/appSettings.js';
+import { getAppSetting, getBoolSetting } from '../db/appSettings.js';
 import { getGuildSettings } from '../db/guilds.js';
 import { autoPlayFunction } from './autoplay.js';
+import { applyFilter } from './filters.js';
 
 /** app_settings key for a guild's persisted autoplay default. */
 export const autoplayKey = (guildId: string) => `autoplay:${guildId}`;
+/** app_settings key for a guild's persisted default filter. */
+export const filterKey = (guildId: string) => `filter:${guildId}`;
 
 /**
  * Queue/player helpers (doc §5).
@@ -51,6 +54,9 @@ export async function ensurePlayer(
     });
     // Apply the guild's persisted autoplay preference (opt-in → defaults off).
     player.set('autoplay', await getBoolSetting(autoplayKey(guildId), false).catch(() => false));
+    // Re-apply the guild's saved filter (if any), so it survives restarts/re-joins.
+    const savedFilter = await getAppSetting(filterKey(guildId)).catch(() => undefined);
+    if (savedFilter && savedFilter !== 'off') await applyFilter(player, savedFilter).catch(() => undefined);
   }
   if (!player.connected) await player.connect();
   return player;

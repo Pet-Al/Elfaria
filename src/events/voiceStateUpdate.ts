@@ -50,6 +50,8 @@ export const voiceStateUpdate: BotEvent<Events.VoiceStateUpdate> = {
     const timer = setTimeout(() => {
       leaveTimers.delete(guild.id);
       const current = client.lavalink.getPlayer(guild.id);
+      // `/24-7 mode:forever` opts out of the empty-channel leave entirely.
+      if (current?.get<boolean>('247Forever')) return;
       if (current?.voiceChannelId && humansIn(client, guild.id, current.voiceChannelId) === 0) {
         logger.info({ guildId: guild.id }, 'voice channel empty — leaving');
         void current.destroy('Channel empty');

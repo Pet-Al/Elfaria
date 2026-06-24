@@ -23,22 +23,24 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/queue` — view the queue (paged) · `/clear` — empty it',
       '`/move` `/remove` `/shuffle` — reorder / trim / shuffle',
       '`/loop` — track/queue loop · `/autoplay` — keep going when it ends',
-      '`/reroll` — fresh shuffle of autoplay picks',
+      '`/reroll` — fresh autoplay picks · `/dequeue` — drop the autoplay picks',
     ],
   },
   {
     name: '🎛️ Modes & sound',
     lines: [
-      '`/lofi` — continuous lofi radio · `/247` — stay in voice 24/7',
-      '`/filter` — EQ / effects · `/volume` — set the volume',
+      '`/lofi` — continuous lofi radio · `/24-7` — stay in voice (until-empty/forever)',
+      '`/filter` — EQ / effects (session) · `/filter-save` — server-wide default',
+      '`/volume` — set the volume',
     ],
   },
   {
     name: '📚 Library & server',
     lines: [
       '`/favorites` — your saved tracks · `/history` — recently played (paged)',
+      '`/replay` `[position]` — replay a track from history (default: most recent)',
       '`/playlist` — save / load playlists · `/summon` — move the bot to your VC',
-      '`/settings` — DJ role & default volume',
+      '`/settings` — DJ role & default volume · `/status` — live health stats',
     ],
   },
   {

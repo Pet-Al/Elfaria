@@ -66,7 +66,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
     if (interaction.isButton()) {
       try {
         if (interaction.customId.startsWith('np:')) await handleButton(interaction);
-        else if (/^(hist|replay):/.test(interaction.customId)) await handleHistoryButton(interaction);
+        else if (interaction.customId.startsWith('hist:')) await handleHistoryButton(interaction);
         else if (interaction.customId.startsWith('q:')) await handleQueueButton(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'button handler failed');
@@ -77,7 +77,7 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
     if (interaction.isStringSelectMenu()) {
       try {
         if (interaction.customId.startsWith('np:')) await handleSelectMenu(interaction);
-        else if (/^(hist|replay):/.test(interaction.customId)) await handleHistorySelect(interaction);
+        else if (interaction.customId.startsWith('hist:')) await handleHistorySelect(interaction);
         else if (interaction.customId.startsWith('q:')) await handleQueueSelect(interaction);
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'select handler failed');
