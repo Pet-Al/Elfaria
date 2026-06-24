@@ -287,6 +287,19 @@ you never rebuild or redeploy the bot:
 Lavalink even logs when a newer plugin is available, so you know exactly when to
 do this. SoundCloud / Bandcamp / direct links are unaffected by YouTube changes.
 
+### "The song randomly dies / cuts out partway"
+
+This is almost always **YouTube throttling** anonymous web clients: the stream
+starts fine, then stalls a minute or two in (you'll see `trackStuck` and the
+audio cuts). The fix is **OAuth** — enable `plugins.youtube.oauth` in
+`lavalink/application.yml`, restart Lavalink, follow the device-code URL in the
+logs (use a **burner** Google account), and paste the printed `refreshToken`
+back. After that YouTube stops throttling and streams play to the end.
+
+> Note: the bot's per-track auto-skip handles a single bad track, and the
+> `maxErrorsPerTime` backstop is intentionally lenient (30/60s) so a transient
+> stall never kills the whole session. OAuth removes the stalls at the source.
+
 ## Duplicate (doubled) slash commands
 
 If a command shows up twice in Discord, you have **both** a global and a

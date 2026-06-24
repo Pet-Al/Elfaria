@@ -65,9 +65,14 @@ export class ElfariaClient extends Client {
         onEmptyQueue: { destroyAfterMs: config.music.leaveOnEndMs, autoPlayFunction },
         // Don't try to reconnect a player after a hard disconnect — just clean up.
         onDisconnect: { autoReconnect: false, destroyPlayer: true },
-        // Circuit-break a flapping source: if tracks error/stall 4+ times within
-        // 20s, stop the player instead of looping forever on a broken stream.
-        maxErrorsPerTime: { threshold: 20_000, maxAmount: 4 },
+        // Backstop against a genuinely broken stream looping forever. Kept very
+        // lenient on purpose: a tighter limit (e.g. 4/20s) DESTROYS the player on
+        // transient stalls — and a YouTube stream being THROTTLED emits trackStuck
+        // every ~10s, which would wrongly kill the session ("song randomly dies").
+        // Individual stuck/errored tracks already auto-skip via autoSkip; this only
+        // fires on a true error storm. The real fix for throttling is YouTube
+        // oauth in lavalink/application.yml.
+        maxErrorsPerTime: { threshold: 60_000, maxAmount: 30 },
       },
     });
   }

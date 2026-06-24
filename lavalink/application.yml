@@ -55,6 +55,19 @@ plugins:
       - TVHTML5EMBEDDED
       - WEBEMBEDDED
       - ANDROID_VR
+    # ── Throttling / "the song dies partway through" ──────────────────────────
+    # YouTube THROTTLES anonymous web clients: a stream starts fine then stalls a
+    # minute or two in (you'll see trackStuck and the song cuts out). The real fix
+    # is OAuth — the plugin authenticates as a (BURNER, not your main) Google
+    # account, and YouTube stops throttling. To enable:
+    #   1. set enabled: true below and (re)start Lavalink,
+    #   2. watch the logs for a "device code" URL, visit it, and authorise,
+    #   3. copy the printed refreshToken into refreshToken below so it persists
+    #      across restarts (otherwise you re-auth each boot).
+    # Use a throwaway account — automating a Google login is against YouTube ToS.
+    oauth:
+      enabled: false
+      # refreshToken: 'paste-after-first-run-device-code-flow'
   lavasrc:
     sources:
       # Spotify works once SPOTIFY_CLIENT_ID/SECRET are set in .env.

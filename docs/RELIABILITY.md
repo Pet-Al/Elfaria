@@ -40,8 +40,13 @@ Errors are handled where they happen and reported in terms the user can act on:
 - **A track that stalls** (`trackStuck`, "the song just died") is surfaced with a
   "stalled and was skipped" notice rather than hanging silently — lavalink-client
   advances the queue; we make it visible.
-- **A flapping source** can't loop forever: `maxErrorsPerTime` (4 errors / 20s)
-  stops the player instead of retrying a broken stream endlessly.
+- **A genuinely broken stream** can't loop forever: `maxErrorsPerTime` is a
+  *lenient* backstop (30 errors / 60s) that stops the player only on a real error
+  storm. It's deliberately NOT tight: a tighter limit destroys the session on
+  transient stalls — and a **throttled** YouTube stream emits `trackStuck` every
+  ~10s, so a tight limit makes "the song randomly dies". Individual stuck/errored
+  tracks already auto-skip. The real fix for throttling-induced mid-song cut-outs
+  is **YouTube OAuth** in `lavalink/application.yml` (`plugins.youtube.oauth`).
 - Every command runs inside the instrumented try/catch, so any uncaught error
   becomes a friendly ephemeral reply (`replyError`) and a logged event, never an
   unhandled rejection.
