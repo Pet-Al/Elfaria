@@ -43,12 +43,16 @@ lavalink:
 plugins:
   youtube:
     enabled: true
-    # Innertube clients the plugin rotates through. These are the names valid in
-    # youtube-source 1.18.x; if streaming breaks, adjusting this list (or bumping
-    # the plugin version above) is the fix.
+    # Innertube clients the plugin rotates through. Order matters — the plugin
+    # tries them in turn. TVHTML5EMBEDDED + MWEB + WEB reliably resolve LIVE
+    # streams (e.g. the 24/7 lofi radios used by /lofi); MUSIC/ANDROID_VR often
+    # fail on livestreams, which is why some lofi stations wouldn't start before.
+    # If streaming breaks, adjust this list or bump the plugin version above.
     clients:
       - MUSIC
       - WEB
+      - MWEB
+      - TVHTML5EMBEDDED
       - WEBEMBEDDED
       - ANDROID_VR
   lavasrc:

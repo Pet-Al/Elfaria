@@ -38,13 +38,20 @@ not the whole bot.
   when the panel retires), source badge, volume/loop indicators, an "up next"
   preview, and a **live-updating progress bar**. The card updates **in place** as
   songs change (unless the channel has moved on), so it doesn't spam.
-- **Now-playing controls**: ⏯️ ⏭️ ⏹️ 🔀 📜 buttons, a compact 🔉/🔊 volume row, a
-  **⭐ favorite** button, and a **loop dropdown** (track/queue × once/infinite),
-  with the same voice/DJ guards as the commands.
-- **History & replay**: `/history` lists recently played tracks; `/replay` (and
-  a one-click Replay button when the queue finishes) replays the last one.
+- **Now-playing controls**: ⏮️ back / ⏯️ / ⏭️ / ⏹️ / 📜 buttons, ⭐ favorite + 🔀
+  shuffle, and **loop / volume / seek dropdowns** (the seek steps scale with the
+  track length). Finished/expired cards keep working **Replay + Favorite** (which
+  auto-grey after ~30 min), and a crashed bot's stale panels are retired on boot.
+- **History & replay**: `/history` is paged (10/page, jump dropdown + Prev/Next);
+  `/replay [position]` replays any history entry (default: the most recent).
 - **Favorites**: ⭐ a track to save it, then `/favorites list|play` to revisit.
-- **Autoplay** (`/autoplay`): keep playing related tracks when the queue ends.
+- **Autoplay** (`/autoplay`): related tracks buffered **ahead** so they show in
+  the queue; `when-off: dequeue|keep`, plus `/reroll` (fresh picks) and `/dequeue`.
+- **Lofi & 24/7**: `/lofi` plays a continuous Lofi Girl station; `/24-7`
+  (`until-empty` / `forever` / `off`) keeps the bot in voice, and **auto-rejoins
+  on restart** (resuming lofi). It still leaves an empty channel unless `forever`.
+- **Filters**: `/filter` (session) with anti-clipping EQ; `/filter-save` persists
+  a filter as the server default. **`/status`** and **`/help`** round it out.
 - **Audio filters/EQ** (`/filter`): bass boost, nightcore, vaporwave, 8D,
   karaoke, lowpass, and EQ presets — done by Lavalink, no quality cost on the bot.
 - **Multi-source** via Lavalink: YouTube, SoundCloud, Bandcamp, Twitch, Vimeo,

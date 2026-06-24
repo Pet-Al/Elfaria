@@ -7,9 +7,11 @@ import { clusterGuildCount, publishLocalCount, shardKey } from '../lib/clusterCo
 import { reconcileGlobalCommands } from '../lib/commandSync.js';
 import { logger } from '../lib/logger.js';
 import { startMetricsServer } from '../lib/metrics.js';
+import { startPlaybackProbe } from '../lib/playbackProbe.js';
 import type { BotEvent } from '../lib/types.js';
 import { loadRecommender } from '../ml/recommender.js';
 import { expireStalePanels } from '../music/panelStore.js';
+import { autoRejoin247 } from '../music/rejoin.js';
 
 const RETENTION_SWEEP_MS = 24 * 60 * 60 * 1000;
 
@@ -104,12 +106,16 @@ export const ready: BotEvent<Events.ClientReady> = {
     await autoDeployCommands(client);
     startMetricsServer(elfaria);
     startApiServer(elfaria);
+    startPlaybackProbe(elfaria); // black-box source-resolve health (feeds the SLO)
 
     // Load the trained recommender if an artifact exists (fail-soft → heuristics).
     void loadRecommender();
 
     // Retire any now-playing panels left "live" by a previous (crashed) process.
     void expireStalePanels(client);
+
+    // Rejoin voice for guilds that had 24/7 on (and resume their lofi stream).
+    void autoRejoin247(elfaria);
 
     // GDPR retention: prune old history/events on boot and daily thereafter.
     void pruneOldData(config.retentionDays);

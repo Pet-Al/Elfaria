@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.js';
 import type { Command } from '../lib/types.js';
 import { getPlayer } from '../music/QueueManager.js';
+import { clear247State, persist247State } from '../music/rejoin.js';
 
 /**
  * /24-7 — keep the bot in voice when the queue ends. The `mode` chooses what
@@ -49,6 +50,7 @@ export const twentyfourseven: Command = {
     if (mode === 'off') {
       player.set('247', false);
       player.set('247Forever', false);
+      void clear247State(interaction.guildId!); // stop auto-rejoining on restart
       await replyOk(interaction, '⏹️ **24/7 off** — I’ll leave shortly after the queue ends.');
       return;
     }
@@ -59,6 +61,15 @@ export const twentyfourseven: Command = {
     const pending = player.get<NodeJS.Timeout | undefined>('internal_queueempty');
     if (pending) clearTimeout(pending);
     player.set('internal_queueempty', undefined);
+
+    // Persist so the bot rejoins this channel on restart (auto-rejoin on boot).
+    if (player.voiceChannelId) {
+      void persist247State(interaction.guildId!, {
+        voiceChannelId: player.voiceChannelId,
+        textChannelId: player.textChannelId ?? interaction.channelId,
+        forever: mode === 'forever',
+      });
+    }
 
     await replyOk(
       interaction,

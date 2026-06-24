@@ -46,3 +46,14 @@ spec:
           annotations:
             summary: Slow track resolution
             description: p95 search/resolve latency > 5s for 10m — a source may be degraded.
+        - alert: ElfariaPlaybackProbeFailing
+          # Black-box canary: the bot resolves a known query every ~5m. A node can
+          # be TCP-connected yet unable to resolve (e.g. a broken YouTube client),
+          # which this catches before users do.
+          expr: max(elfaria_playback_probe_success) == 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: Playback probe failing
+            description: The end-to-end source-resolve probe has failed for 15m — playback is likely broken even if nodes show connected.

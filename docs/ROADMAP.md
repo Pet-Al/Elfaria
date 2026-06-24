@@ -133,12 +133,18 @@ small and scale stacks; SQLite remains only for a non-Docker `npm start`.
   precise **lyrics** errors + **trackStuck** handling + error-rate cap; **paginated
   history** + **replay picker**; **/help**; **/queue** paging; **cross-pod presence
   via Redis** (the sharding bug — fixed); persisted autoplay per guild.
+- Latest batch: **lofi fixed** for real (Lavalink YouTube clients now include
+  TVHTML5EMBEDDED/MWEB so the 24/7 live stations resolve); **/247 → /24-7** with
+  `until-empty`/`forever`/`off` modes; **24/7 auto-rejoin on restart** (persists
+  channel + mode + lofi station, rejoins on boot — `music/rejoin.ts`); **black-box
+  playback probe** SLO canary (`lib/playbackProbe.ts` + alert); **all component
+  interactions instrumented** (RED metrics, not just commands); **/replay <#>**
+  integer param; **/dequeue**, **/filter-save**, **/status**; 30-min button expiry.
 
 **Still genuinely remaining (honest)**
-- 24/7 **auto-rejoin after a restart** (the toggle is session-level + persisted
-  intent, but the bot doesn't re-enter voice on boot yet); a true black-box
-  playback canary for the SLO; broader command-handler coverage.
-- Broader command-handler tests with a mocked interaction.
+- A full end-to-end *play* canary into a real voice channel (the probe resolves
+  but doesn't play); broader command-handler coverage; cross-region failover
+  orchestration (only at much larger scale).
 - Idle-leave when a play resolves nothing (broken/unsupported link); pause
   inactivity leave (don't sit paused in voice forever).
 - Resilience: a 30s timeout around source resolution so a hung source can't

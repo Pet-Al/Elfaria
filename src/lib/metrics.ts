@@ -54,6 +54,28 @@ export const sourceResolveDuration = new Histogram({
   registers: [registry],
 });
 
+/** Component (button/select) interactions handled, by kind and outcome. */
+export const componentInteractionsTotal = new Counter({
+  name: 'elfaria_component_interactions_total',
+  help: 'Now-playing / history / queue component interactions, by kind and status.',
+  labelNames: ['kind', 'status'] as const,
+  registers: [registry],
+});
+
+/** Black-box playback probe: 1 if the last source-resolve probe succeeded, else 0. */
+export const playbackProbeSuccess = new Gauge({
+  name: 'elfaria_playback_probe_success',
+  help: 'Whether the most recent end-to-end source-resolve probe succeeded (1/0).',
+  registers: [registry],
+});
+
+/** Latency (seconds) of the last successful playback probe. */
+export const playbackProbeLatency = new Gauge({
+  name: 'elfaria_playback_probe_latency_seconds',
+  help: 'Latency of the most recent successful playback probe, in seconds.',
+  registers: [registry],
+});
+
 /** Live player count — set on scrape from the Lavalink manager. */
 const activePlayers = new Gauge({
   name: 'elfaria_active_players',
@@ -86,6 +108,22 @@ export async function instrumentCommand<T>(
     throw err;
   } finally {
     end();
+  }
+}
+
+/**
+ * Time a component (button/select) handler and record its outcome — the same
+ * RED treatment commands get, so EVERY client interaction is observed, not just
+ * slash commands. `kind` is the custom-id prefix (np|hist|q|…).
+ */
+export async function instrumentComponent<T>(kind: string, run: () => T | Promise<T>): Promise<T> {
+  try {
+    const result = await run();
+    componentInteractionsTotal.inc({ kind, status: 'ok' });
+    return result;
+  } catch (err) {
+    componentInteractionsTotal.inc({ kind, status: 'error' });
+    throw err;
   }
 }
 

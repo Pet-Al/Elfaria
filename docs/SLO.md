@@ -89,8 +89,11 @@ The budget isn't just for alerting — it's a release-velocity governor:
 - SLIs are **per-process** unless your Prometheus aggregates across shards —
   the `sum(...)` in the rules does this correctly once all shards are scraped.
 - Playback availability uses a gauge sampled at scrape time, so sub-scrape
-  outages can be missed; it's a good proxy, not a synthetic probe. A true
-  black-box check (a canary that plays a track end-to-end) is the next step.
+  outages can be missed; it's a good proxy. It's now backed by a **black-box
+  probe** (`elfaria_playback_probe_success`) that actually resolves a track every
+  ~5m and pages via `ElfariaPlaybackProbeFailing` — catching a node that's
+  "connected" but can't resolve. (A full end-to-end *play* canary into a real
+  voice channel remains future work.)
 - Until there's meaningful command traffic, ratios are dominated by small
   numbers — the `clamp_min(..., 1)` keeps them from dividing by ~0, but treat
   early alerts with a grain of salt.

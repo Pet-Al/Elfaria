@@ -59,10 +59,26 @@ is set, else the primary). HA + multi-region is covered in §7.
 | `play_history` | id, guild_id, title, uri, author, requester_id, played_at | `trackStart` | `/history`, `/replay`, Replay button |
 | `favorites` | id, user_id, title, uri, author, created_at — UNIQUE(user,uri) | ⭐ button, `/favorites` | `/favorites` |
 | `events` | id, guild_id, user_id, event_type, title, uri, author, query, created_at | `recordEvent()` (play/skip/search) | co-play recommender, public API, trainer |
+| `app_settings` | key (PK), value, updated_at | `setAppSetting()` | toggles + bookkeeping (below) |
 
 Indexes back every hot query: `playlist_tracks(playlist_id,position)`,
 `play_history(guild_id, played_at DESC, id DESC)`, `favorites(user_id, created_at DESC)`,
 and `events(guild_id, created_at)` + `events(event_type, created_at DESC)`.
+
+### `app_settings` keys (global + per-guild key/value)
+
+A small key/value table for things that don't warrant their own schema. Per-guild
+keys are suffixed with the guild id. None of it is personal data.
+
+| Key | Meaning |
+|-----|---------|
+| `commands_global_hash` | hash of the deployed command set — skips re-PUTs when unchanged (dupe/propagation fix) |
+| `retention_enabled` | owner toggle: `false` disables the 90-day prune (`/admin retention`) |
+| `forgetme_enabled` | owner toggle: `false` disables `/forget-me` (`/admin forget-me`) |
+| `autoplay:<guildId>` | persisted autoplay default, re-applied on player creation |
+| `filter:<guildId>` | persisted server-wide filter (`/filter-save`), re-applied on player creation |
+| `247state:<guildId>` | JSON `{v,t,forever,lofi?}` — voice/text channel + mode (+ lofi station) for **24/7 auto-rejoin on restart** |
+| `panel:<guildId>` | live now-playing message ref, used to retire a panel left by a crashed process |
 
 ## 2. The event pipeline
 

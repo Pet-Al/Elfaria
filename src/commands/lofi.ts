@@ -3,6 +3,7 @@ import { getVoiceContext, isDj, replyError, replyOk } from '../lib/interactions.
 import { logger } from '../lib/logger.js';
 import type { Command } from '../lib/types.js';
 import { getOrCreatePlayer } from '../music/QueueManager.js';
+import { set247Lofi } from '../music/rejoin.js';
 import { resolve } from '../music/sources.js';
 
 /**
@@ -71,6 +72,8 @@ export const lofi: Command = {
 
       if (player.queue.tracks.length > 0) await player.queue.splice(0, player.queue.tracks.length);
       await player.play({ clientTrack: track });
+      // If 24/7 is on, remember the station so a restart resumes this stream.
+      if (player.get<boolean>('247')) void set247Lofi(interaction.guildId!, station.id);
       await replyOk(interaction, `🎧 **Lofi mode** — now playing **${track.info.title || station.label}**.`);
     } catch (err) {
       logger.error({ err, guildId: interaction.guildId }, 'lofi start failed');

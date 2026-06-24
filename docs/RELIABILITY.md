@@ -46,6 +46,34 @@ Errors are handled where they happen and reported in terms the user can act on:
   becomes a friendly ephemeral reply (`replyError`) and a logged event, never an
   unhandled rejection.
 
+## Every interaction is wrapped + measured
+
+Not just slash commands — **button and select-menu interactions** also run inside
+a try/catch and through RED instrumentation (`instrumentComponent`,
+`elfaria_component_interactions_total{kind,status}`). So a failing now-playing
+button, history page, or queue control is contained and observable exactly like a
+command. (The bot's own read-only HTTP API in `lib/api.ts` is a *separate* stats
+surface — Discord interactions go through the gateway, not the API.)
+
+## Black-box playback probe (the SLO canary)
+
+A node being TCP-connected doesn't prove it can actually *play* — a broken
+YouTube client resolves nothing while the node still shows "connected". So every
+~5 minutes the bot runs a real source-resolve against a live node
+(`lib/playbackProbe.ts`) and records `elfaria_playback_probe_success` (1/0) +
+`elfaria_playback_probe_latency_seconds`. It only resolves (no voice channel
+needed) and is near-free. `ElfariaPlaybackProbeFailing` pages when it's been
+failing for 15m — catching "playback is broken" before users do, independent of
+the node-connected gauge the availability SLO uses.
+
+## 24/7 auto-rejoin on restart
+
+24/7 mode persists its voice/text channel + mode (and any lofi station) to
+`app_settings` (`music/rejoin.ts`). On boot, after a node connects, the bot
+rejoins voice for every 24/7 guild it owns and resumes the lofi stream — so a
+deploy or crash doesn't require re-summoning it. Turning 24/7 off clears the
+saved state. (Multi-pod safe: only the pod that owns a guild rejoins it.)
+
 ## Distributed tracing (OpenTelemetry)
 
 Opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`).

@@ -2,7 +2,7 @@ import { Collection, Events, MessageFlags } from 'discord.js';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
-import { instrumentCommand } from '../lib/metrics.js';
+import { instrumentCommand, instrumentComponent } from '../lib/metrics.js';
 import type { BotEvent } from '../lib/types.js';
 import { handleButton, handleSelectMenu } from './buttons.js';
 import { handleHistoryButton, handleHistorySelect } from './historyComponents.js';
@@ -61,13 +61,18 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
       return;
     }
 
-    // Component interactions, routed by custom-id prefix:
-    //   np:*           → now-playing panel    hist:* / replay:* → history & replay
+    // Component interactions, routed by custom-id prefix and instrumented the
+    // same way commands are (RED metrics), so EVERY client interaction is wrapped.
+    //   np:* → now-playing panel · hist:* → history · q:* → queue
+    const kind = (id: string) => id.split(':', 1)[0] ?? 'unknown';
+
     if (interaction.isButton()) {
       try {
-        if (interaction.customId.startsWith('np:')) await handleButton(interaction);
-        else if (interaction.customId.startsWith('hist:')) await handleHistoryButton(interaction);
-        else if (interaction.customId.startsWith('q:')) await handleQueueButton(interaction);
+        await instrumentComponent(kind(interaction.customId), async () => {
+          if (interaction.customId.startsWith('np:')) await handleButton(interaction);
+          else if (interaction.customId.startsWith('hist:')) await handleHistoryButton(interaction);
+          else if (interaction.customId.startsWith('q:')) await handleQueueButton(interaction);
+        });
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'button handler failed');
       }
@@ -76,9 +81,11 @@ export const interactionCreate: BotEvent<Events.InteractionCreate> = {
 
     if (interaction.isStringSelectMenu()) {
       try {
-        if (interaction.customId.startsWith('np:')) await handleSelectMenu(interaction);
-        else if (interaction.customId.startsWith('hist:')) await handleHistorySelect(interaction);
-        else if (interaction.customId.startsWith('q:')) await handleQueueSelect(interaction);
+        await instrumentComponent(kind(interaction.customId), async () => {
+          if (interaction.customId.startsWith('np:')) await handleSelectMenu(interaction);
+          else if (interaction.customId.startsWith('hist:')) await handleHistorySelect(interaction);
+          else if (interaction.customId.startsWith('q:')) await handleQueueSelect(interaction);
+        });
       } catch (err) {
         logger.warn({ err, customId: interaction.customId }, 'select handler failed');
       }
