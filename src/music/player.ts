@@ -378,11 +378,14 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
     .on('playerDestroy', (player) => {
       stopTicking(player);
       clearPauseTimer(player);
-      // Autoplay is a session modifier — always reset it off when the bot leaves
-      // so it never silently resumes auto-queuing on the next join. (The saved
-      // value is cleared too; only modifier-persistence guilds restore others.)
-      player.set('autoplay', false);
-      void setAppSetting(autoplayKey(player.guildId), 'false').catch(() => undefined);
+      // Autoplay is a session modifier — reset it off when the bot leaves so it
+      // never silently resumes auto-queuing on the next join. Only act when it
+      // was actually ON: no pointless persisted "false" churn when it's already
+      // off. (Persistence guilds restore the OTHER modifiers, never autoplay.)
+      if (player.get<boolean>('autoplay')) {
+        player.set('autoplay', false);
+        void setAppSetting(autoplayKey(player.guildId), 'false').catch(() => undefined);
+      }
       // However the player goes away, the greyed card below is standalone-
       // functional, so the saved ref is no longer needed.
       void forgetPanel(player.guildId);

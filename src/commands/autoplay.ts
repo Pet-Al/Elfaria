@@ -42,7 +42,18 @@ export const autoplay: Command = {
       return;
     }
 
-    const enabled = !player.get<boolean>('autoplay');
+    const current = player.get<boolean>('autoplay') ?? false;
+    const whenOff = interaction.options.getString('when-off');
+
+    // Passing `when-off` is an explicit "turn it OFF" intent, not a blind toggle:
+    // it must only ever act on a real on→off transition and never silently flip
+    // autoplay back ON. So if you choose a when-off behaviour while autoplay is
+    // already off, it's a no-op. With no option given, the command just toggles.
+    if (whenOff !== null && !current) {
+      await replyOk(interaction, '⏹️ Autoplay is already **off** — nothing to do.');
+      return;
+    }
+    const enabled = whenOff !== null ? false : !current;
     player.set('autoplay', enabled);
     // Persist per guild so it survives a restart / new player (applied in ensurePlayer).
     void setAppSetting(autoplayKey(interaction.guildId!), enabled ? 'true' : 'false');
@@ -59,7 +70,7 @@ export const autoplay: Command = {
       );
     } else {
       // The when-off param only takes effect on this on→off transition.
-      const keep = interaction.options.getString('when-off') === 'keep';
+      const keep = whenOff === 'keep';
       const removed = keep ? 0 : await clearAutoplayQueued(player);
       void refreshPanel(player);
       await replyOk(

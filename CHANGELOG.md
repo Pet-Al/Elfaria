@@ -5,6 +5,37 @@ Notable changes, newest first. Elfaria is pre-1.0 and on a single rolling branch
 semver tags. See [docs/REFERENCE.md](./docs/REFERENCE.md) for the full reference
 and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 
+## Full plugin suite, /tts, favourites autocomplete & shard-safe API
+
+- **LavaDSPX re-enabled with the correct coordinate.** The crash-loop was a bad
+  string (`com.github.devoxin:…:2.0.0` — wrong case, nonexistent version);
+  verified the real one is **`com.github.Devoxin:LavaDSPX-Plugin:0.0.5`** and
+  turned it back on. `/filter`'s Normalize/Echo presets work again behind
+  `LAVA_DSPX`.
+- **More Lavalink plugins added** (all coordinates verified to resolve first, so
+  one can't crash-loop the node again — see [docs/PLUGINS.md](./docs/PLUGINS.md)):
+  - **DuncteBot (skybot)** — extra sources + a credential-free `speak:` TTS source.
+  - **java-timed-lyrics** — a second (Genius-backed) synced-lyrics provider,
+    loaded but not yet on the priority list (LavaSrc stays primary).
+  - **XM**, **Google Cloud TTS** and **lyrics.kt** are **declared but commented**
+    (third-party-maven risk / needs creds / duplicate provider) — one line from
+    enabling, each with a note.
+- **`/tts <text>`** — speak a short message into the voice channel via the free
+  DuncteBot `speak:` source (no Google credentials needed). Plays **next** so an
+  announcement doesn't wait behind the whole queue. Gated by `TTS_ENABLED`.
+- **`/favorites play` autocomplete** — start typing to pick a saved favourite by
+  name (still accepts the number from `/favorites list`).
+- **Autoplay-off no longer toggles back on.** Passing a `when-off` choice while
+  autoplay is already off is now a no-op instead of flipping it on; the bot-leave
+  reset also only acts when autoplay was actually on.
+- **Public API gated to shard 0** — fixes the `EADDRINUSE :::8080` crash where
+  every shard process tried to bind the same fixed API port. (Metrics already
+  offsets its port per shard.)
+- **Concurrency model documented + hardened.** Live card updates and commands run
+  concurrently on the event loop (commands only ever do a synchronous "mark
+  dirty"; edits are fire-and-forget and coalesced) — no change to the live
+  behaviour, plus a defensive render-timeout so a wedged edit can't freeze a card.
+
 ## Recommend polish, card cleanup, multi-skip fix & Lavalink plugin migration
 
 - **`/recommend` overhauled for freshness + genre.** Picks are now anchored to

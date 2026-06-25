@@ -117,7 +117,11 @@ export const ready: BotEvent<Events.ClientReady> = {
     await elfaria.lavalink.init({ id: client.user.id, username: client.user.username });
     await autoDeployCommands(client);
     startMetricsServer(elfaria);
-    startApiServer(elfaria);
+    // The public API binds a single fixed port (API_PORT). Under sharding every
+    // shard is its own process on the same host, so only shard 0 may bind it —
+    // otherwise the siblings crash-loop with EADDRINUSE. (Metrics is per-shard:
+    // it offsets its port by shard id, so it doesn't need this guard.)
+    if (ownsShardZero(client)) startApiServer(elfaria);
     startPlaybackProbe(elfaria); // black-box source-resolve health (feeds the SLO)
     startPlayCanary(elfaria); // end-to-end PLAY canary (opt-in, staging VC)
 

@@ -34,12 +34,13 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/filter` — EQ / effects incl. **vocal** clarity (add `save:true` for a server default)',
       '`/sponsorblock` — skip sponsor/intro/off-topic segments · `/volume` — set the volume',
       '`/modifiers` — see what’s active (autoplay/filter/…) + toggle persistence',
+      '`/tts` — speak a short message into the voice channel (text-to-speech)',
     ],
   },
   {
     name: '📚 Library & server',
     lines: [
-      '`/favorites` — your saved tracks · `/history` — recently played (paged)',
+      '`/favorites` — your saved tracks (type to search in `play`) · `/history` — recently played (paged)',
       '`/replay` `[position]` — replay a track from history (default: most recent)',
       '`/playlist` — save / load playlists · `/summon` — move the bot to your VC',
       '`/settings` — DJ role & default volume · `/status` — health · `/about` — the tech stack',

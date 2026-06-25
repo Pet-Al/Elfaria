@@ -35,6 +35,7 @@ import { sponsorblock } from './sponsorblock.js';
 import { status } from './status.js';
 import { stop } from './stop.js';
 import { summon } from './summon.js';
+import { tts } from './tts.js';
 import { twentyfourseven } from './twentyfourseven.js';
 import { volume } from './volume.js';
 
@@ -71,6 +72,7 @@ export const commands: Command[] = [
   filter,
   sponsorblock,
   modifiers,
+  tts,
   status,
   history,
   replay,

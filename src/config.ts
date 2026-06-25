@@ -260,6 +260,11 @@ export const config = {
     dspx: optional('LAVA_DSPX', 'false') === 'true',
     // Use the LavaSearch plugin (richer multi-type results) where supported.
     lavaSearch: optional('LAVASEARCH', 'false') === 'true',
+    // /tts text-to-speech via the DuncteBot plugin's credential-free `speak:`
+    // source. On by default since the plugin now ships in application.yml and
+    // needs no credentials; set TTS_ENABLED=false to hide the command's effect
+    // (it then replies that TTS is disabled) if you don't load the plugin.
+    tts: optional('TTS_ENABLED', 'true') === 'true',
   },
 
   // Trained recommender (doc roadmap #6). The offline trainer (`npm run train`)
