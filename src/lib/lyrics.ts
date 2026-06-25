@@ -144,19 +144,46 @@ export function parseLrc(lrc: string): SyncedLine[] {
   return out.sort((a, b) => a.t - b.t);
 }
 
-/** Fetch timed lyrics for a track, or null if none/unavailable. Never throws. */
+/**
+ * Fetch timed lyrics for a track, or null if none/unavailable. Never throws.
+ *
+ * Mirrors fetchLyrics' resolution so the card lines up with /lyrics: it tries the
+ * exact get-by-(artist,title) for each candidate pair, then — crucially — falls
+ * back to LRCLIB /search (picking the first hit that actually has *synced*
+ * lyrics). Messy YouTube titles/authors ("… (Official Video)", "Artist - Topic")
+ * routinely miss the exact get even for mainstream songs that DO have synced
+ * lyrics, which is why the live card line used to stay blank while /lyrics worked.
+ */
 export async function fetchSyncedLyrics(
   rawArtist: string,
   rawTitle: string,
 ): Promise<SyncedLine[] | null> {
-  for (const [artist, title] of candidatePairs(rawArtist, rawTitle)) {
+  const pairs = candidatePairs(rawArtist, rawTitle);
+
+  // 1) Exact get by (artist, title), most specific first.
+  for (const [artist, title] of pairs) {
     if (!artist || !title) continue;
     const { res, serviceError } = await httpGet(getUrl(artist, title));
-    if (serviceError) return null;
-    if (!res?.ok) continue;
+    if (serviceError) break; // LRCLIB unreachable — don't hammer; try search once below
+    if (!res?.ok) continue; // 404 / miss — try the next pair
     const data = (await res.json().catch(() => ({}))) as LrcEntry;
     if (data.syncedLyrics?.trim()) {
       const lines = parseLrc(data.syncedLyrics);
+      if (lines.length) return lines;
+    }
+  }
+
+  // 2) Search fallback — finds synced lyrics the exact get missed (the common
+  //    case for mainstream songs with messy uploader titles).
+  const [artist, title] = pairs[0]!;
+  for (const query of [`${title} ${artist}`.trim(), title]) {
+    if (!query) continue;
+    const { res } = await httpGet(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
+    if (!res?.ok) continue;
+    const results = (await res.json().catch(() => [])) as LrcEntry[];
+    const hit = results.find((r) => r.syncedLyrics?.trim());
+    if (hit?.syncedLyrics) {
+      const lines = parseLrc(hit.syncedLyrics);
       if (lines.length) return lines;
     }
   }

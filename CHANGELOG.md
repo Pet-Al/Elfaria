@@ -5,7 +5,19 @@ Notable changes, newest first. Elfaria is pre-1.0 and on a single rolling branch
 semver tags. See [docs/REFERENCE.md](./docs/REFERENCE.md) for the full reference
 and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 
-## Full plugin suite, /tts, favourites autocomplete & shard-safe API
+## Live card lyrics now match `/lyrics` coverage
+
+- **The card's live synced-lyrics line now appears for far more songs.** It was
+  fetched with a *synced-only, exact-match* lookup (`get?artist&track`), so messy
+  YouTube titles/authors (`"… (Official Video)"`, `"Artist - Topic"`) missed even
+  mainstream tracks that DO have synced lyrics on LRCLIB — while `/lyrics` found
+  them via search. `fetchSyncedLyrics` now mirrors `/lyrics`: exact get per
+  candidate pair, then an **LRCLIB `/search` fallback** that picks the first
+  result actually carrying synced lyrics. (Songs that only have *plain*,
+  untimed lyrics still can't scroll live — there's no per-line timing to sync to;
+  `/lyrics` shows them in full.)
+
+
 
 - **LavaDSPX re-enabled with the correct coordinate.** The crash-loop was a bad
   string (`com.github.devoxin:…:2.0.0` — wrong case, nonexistent version);
