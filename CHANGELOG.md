@@ -12,17 +12,21 @@ and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
   verified the real one is **`com.github.Devoxin:LavaDSPX-Plugin:0.0.5`** and
   turned it back on. `/filter`'s Normalize/Echo presets work again behind
   `LAVA_DSPX`.
-- **More Lavalink plugins added** (all coordinates verified to resolve first, so
-  one can't crash-loop the node again — see [docs/PLUGINS.md](./docs/PLUGINS.md)):
-  - **DuncteBot (skybot)** — extra sources + a credential-free `speak:` TTS source.
+- **More Lavalink plugins added** (coordinates verified to resolve first — see
+  [docs/PLUGINS.md](./docs/PLUGINS.md)):
   - **java-timed-lyrics** — a second (Genius-backed) synced-lyrics provider,
     loaded but not yet on the priority list (LavaSrc stays primary).
+  - **DuncteBot (skybot)** was added then **pulled back out**: its 1.7.1 jar
+    isn't self-contained (needs a separate `com.dunctebot:sourcemanagers` library
+    that Lavalink's plugin loader doesn't fetch), so it threw `NoClassDefFoundError`
+    and crash-looped the node. Disabled until a self-contained build is available.
   - **XM**, **Google Cloud TTS** and **lyrics.kt** are **declared but commented**
     (third-party-maven risk / needs creds / duplicate provider) — one line from
     enabling, each with a note.
-- **`/tts <text>`** — speak a short message into the voice channel via the free
-  DuncteBot `speak:` source (no Google credentials needed). Plays **next** so an
-  announcement doesn't wait behind the whole queue. Gated by `TTS_ENABLED`.
+- **`/tts <text>`** — speaks a short message into the channel via DuncteBot's free
+  `speak:` source, playing **next** so it doesn't wait behind the queue. The
+  command ships behind `TTS_ENABLED` (**default off**, since DuncteBot is disabled
+  above); it replies "disabled" until a working TTS plugin is enabled.
 - **`/favorites play` autocomplete** — start typing to pick a saved favourite by
   name (still accepts the number from `/favorites list`).
 - **Autoplay-off no longer toggles back on.** Passing a `when-off` choice while

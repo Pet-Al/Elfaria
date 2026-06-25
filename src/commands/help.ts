@@ -34,7 +34,6 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/filter` — EQ / effects incl. **vocal** clarity (add `save:true` for a server default)',
       '`/sponsorblock` — skip sponsor/intro/off-topic segments · `/volume` — set the volume',
       '`/modifiers` — see what’s active (autoplay/filter/…) + toggle persistence',
-      '`/tts` — speak a short message into the voice channel (text-to-speech)',
     ],
   },
   {

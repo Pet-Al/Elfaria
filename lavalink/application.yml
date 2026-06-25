@@ -34,7 +34,9 @@ lavalink:
     # to resolve — one bad/unpublished coordinate aborts PluginManager and crash-
     # loops the whole node. Some are flag-gated on the bot side (LYRICS_SOURCE,
     # LAVA_DSPX, LAVASEARCH) so the old code paths stay default until confirmed;
-    # DuncteBot + java-timed-lyrics just load. Bump any version that fails to boot.
+    # java-timed-lyrics just loads. NOTE: resolving is necessary but not sufficient
+    # — a plugin can still fail at boot if its jar isn't self-contained (see the
+    # DuncteBot note below). Bump any version that fails to boot.
     #
     # LavaSearch — richer search: returns tracks, albums, artists, playlists and
     # text suggestions (lavalink-client: player.lavaSearch()).
@@ -52,12 +54,15 @@ lavalink:
     # Flag-gated by LAVA_DSPX (default off); fail-soft.
     - dependency: 'com.github.Devoxin:LavaDSPX-Plugin:0.0.5'
       repository: 'https://jitpack.io'
-    # DuncteBot (skybot) — extra sources (getyarn, clypit, ocremix, reddit,
-    # tiktok, mixcloud, …) AND a credential-free `speak:` TTS source, which powers
-    # /tts. NSFW sources are disabled in the plugins.dunctebot block below.
-    # https://github.com/DuncteBot/skybot-lavalink-plugin
-    - dependency: 'com.dunctebot:skybot-lavalink-plugin:1.7.1'
-      repository: 'https://maven.lavalink.dev/releases'
+    # DuncteBot (skybot) — DISABLED. The 1.7.1 jar downloads and loads, but its
+    # injector needs classes from a SEPARATE `com.dunctebot:sourcemanagers`
+    # library (e.g. GetyarnAudioSourceManager) that isn't bundled in the jar, and
+    # Lavalink's plugin loader only fetches the one declared jar — not transitive
+    # Maven deps — so it threw NoClassDefFoundError and crash-looped the node.
+    # Re-enable only with a self-contained (fat) build or by also providing the
+    # sourcemanagers jar on the classpath. This also gates /tts (TTS_ENABLED).
+    # - dependency: 'com.dunctebot:skybot-lavalink-plugin:1.7.1'
+    #   repository: 'https://maven.lavalink.dev/releases'
     # java-timed-lyrics — timestamped (synced) lyrics from YouTube with a Genius
     # fallback; registers as an extra LavaLyrics provider. It is NOT on the
     # lavalyrics priority list by default (LavaSrc stays primary, proven path) —
@@ -149,9 +154,10 @@ plugins:
       clientId: '${SPOTIFY_CLIENT_ID:}'
       clientSecret: '${SPOTIFY_CLIENT_SECRET:}'
       countryCode: 'US'
-  # DuncteBot (skybot) plugin. NSFW sources (pornhub/soundgasm) are OFF for a
-  # general-audience bot — flip them on only if you know your servers want it.
-  # `speak` is the free TTS source /tts uses (no credentials needed).
+  # DuncteBot (skybot) plugin config — INERT while the plugin is disabled above
+  # (Lavalink ignores config for unloaded plugins). Kept ready for re-enabling.
+  # NSFW sources (pornhub/soundgasm) are OFF for a general-audience bot. `speak`
+  # is the free TTS source /tts would use (no credentials needed).
   dunctebot:
     ttsLanguage: 'en-US'
     sources:

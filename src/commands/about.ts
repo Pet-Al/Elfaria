@@ -20,8 +20,8 @@ const FIELDS: { name: string; value: string }[] = [
       'Offloaded to **Lavalink v4** over a thin client — sourcing, Opus transcoding and UDP ' +
       'streaming happen there, not in the latency-sensitive bot. Plugin suite: **youtube-source**, ' +
       '**LavaSrc** (Spotify/Apple/Deezer), **SponsorBlock**, **LavaSearch**, **LavaLyrics** + ' +
-      '**java-timed-lyrics**, **LavaDSPX** (normalize/echo) and **DuncteBot** (extra sources + ' +
-      'free `speak:` TTS → `/tts`). Multi-node, session-balanced, DB-persisted queues.',
+      '**java-timed-lyrics**, and **LavaDSPX** (normalize/echo). Multi-node, session-balanced, ' +
+      'DB-persisted queues.',
   },
   {
     name: '🗄️ Data tier',

@@ -261,10 +261,10 @@ export const config = {
     // Use the LavaSearch plugin (richer multi-type results) where supported.
     lavaSearch: optional('LAVASEARCH', 'false') === 'true',
     // /tts text-to-speech via the DuncteBot plugin's credential-free `speak:`
-    // source. On by default since the plugin now ships in application.yml and
-    // needs no credentials; set TTS_ENABLED=false to hide the command's effect
-    // (it then replies that TTS is disabled) if you don't load the plugin.
-    tts: optional('TTS_ENABLED', 'true') === 'true',
+    // source. OFF by default: the DuncteBot plugin is currently disabled in
+    // application.yml (its jar isn't self-contained and crash-looped the node).
+    // Once a working DuncteBot/GCP-TTS build is enabled there, set TTS_ENABLED=true.
+    tts: optional('TTS_ENABLED', 'false') === 'true',
   },
 
   // Trained recommender (doc roadmap #6). The offline trainer (`npm run train`)
