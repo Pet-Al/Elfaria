@@ -78,7 +78,10 @@ test('nowPlayingCard: enriched panel shows badge/state/up-next + volume buttons 
   }).toJSON();
   const blob = JSON.stringify(json);
   assert.ok(blob.includes('YouTube'), 'source badge present'); // track.sourceName = youtube
-  assert.ok(blob.includes('🔊 80%'), 'volume indicator present');
+  // Volume is intentionally NOT shown under the title; it lives on the dropdown
+  // placeholder instead ("🔊 Volume — 80%"), so it appears once, not twice.
+  assert.ok(!blob.includes('🔊 80%'), 'volume not duplicated in the header');
+  assert.ok(blob.includes('Volume — 80%'), 'volume shown on the dropdown');
   assert.ok(blob.includes('Loop: queue'), 'loop indicator present');
   assert.ok(blob.includes('Up next') && blob.includes('+2 more'), 'up-next block present');
   // Five action rows: transport, favorite, loop select, volume select, seek select.

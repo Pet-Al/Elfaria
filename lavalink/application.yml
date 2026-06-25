@@ -30,6 +30,23 @@ lavalink:
     # https://github.com/topi314/Sponsorblock-Plugin/releases
     - dependency: 'com.github.topi314.sponsorblock:sponsorblock-plugin:3.0.1'
       repository: 'https://maven.lavalink.dev/releases'
+    # ── Plugins being migrated to (see docs/PLUGINS.md). These are LOADED here,
+    # but the bot only USES them when the matching flag is set (LYRICS_SOURCE,
+    # LAVA_DSPX, LAVASEARCH) — so the old code paths stay the default until each
+    # is confirmed. Bump any version that fails to boot (check the repo releases).
+    #
+    # LavaSearch — richer search: returns tracks, albums, artists, playlists and
+    # text suggestions (lavalink-client: player.lavaSearch()).
+    - dependency: 'com.github.topi314.lavasearch:lavasearch-plugin:1.0.0'
+      repository: 'https://maven.lavalink.dev/releases'
+    # LavaLyrics — a lyrics API other plugins/clients consume; LavaSrc feeds it
+    # (lavalink-client: player.getCurrentLyrics()). Enables native synced lyrics.
+    - dependency: 'com.github.topi314.lavalyrics:lavalyrics-plugin:1.0.0'
+      repository: 'https://maven.lavalink.dev/releases'
+    # LavaDSPX — extra DSP filters (normalization, high/low-pass, echo) beyond the
+    # stock EQ, applied via pluginFilters. Powers the /filter normalize & echo presets.
+    - dependency: 'com.github.devoxin:LavaDSPX-Plugin:2.0.0'
+      repository: 'https://jitpack.io'
   server:
     password: '${LAVALINK_SERVER_PASSWORD:youshallnotpass}'
     sources:
@@ -76,12 +93,22 @@ plugins:
     oauth:
       enabled: false
       # refreshToken: 'paste-after-first-run-device-code-flow'
+  # LavaLyrics provider priority (only matters with LYRICS_SOURCE=lavalink). LavaSrc
+  # below serves the lyrics; verify keys against the LavaLyrics README if it errors.
+  lavalyrics:
+    sources:
+      - lavasrc
   lavasrc:
     sources:
       # Spotify works once SPOTIFY_CLIENT_ID/SECRET are set in .env.
       spotify: true
       applemusic: false
       deezer: false
+    # Let LavaSrc answer LavaLyrics requests (used only when LYRICS_SOURCE=lavalink).
+    lyrics-sources:
+      spotify: true
+      deezer: false
+      youtube: true
     spotify:
       clientId: '${SPOTIFY_CLIENT_ID:}'
       clientSecret: '${SPOTIFY_CLIENT_SECRET:}'

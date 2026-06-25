@@ -5,6 +5,30 @@ Notable changes, newest first. Elfaria is pre-1.0 and on a single rolling branch
 semver tags. See [docs/REFERENCE.md](./docs/REFERENCE.md) for the full reference
 and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 
+## Recommend polish, card cleanup, multi-skip fix & Lavalink plugin migration
+
+- **`/recommend` overhauled for freshness + genre.** Picks are now anchored to
+  the seed track via its YouTube **mix/radio** and the seed-aware signals only —
+  popularity is left out when there's a seed, fixing "EDM seed → lofi results".
+  Your own most-played tracks are capped to **one** pick, so a thin history
+  surfaces NEW music in the same vibe instead of replaying what you know. Added
+  **`/recommend clear:true`** to remove the tracks it queued.
+- **Card cleanup** — removed the duplicate 🔊 volume% under the title (the volume
+  dropdown already shows it).
+- **Multi-skip timer fix** — card edits are now **serialized per player** in the
+  update pipeline, so rapid skips can't race two concurrent `message.edit`s and
+  make the progress bar jump. (Edits across different guilds still run in
+  parallel.)
+- **Lavalink plugin migration (flagged, old path stays default)** — see
+  [docs/PLUGINS.md](./docs/PLUGINS.md):
+  - **LavaLyrics** (`LYRICS_SOURCE=lavalink`) — native synced lyrics via the
+    node, with automatic LRCLIB fallback.
+  - **LavaDSPX** (`LAVA_DSPX=true`) — adds **Normalize** / **Echo** presets to
+    `/filter`; every filter apply resets all filters (stock + plugin) to a clean
+    slate so presets never stack.
+  - **LavaSearch** (`LAVASEARCH=true`) — richer search, falling back to the
+    normal search on any miss.
+
 ## Update pipeline, restart-replay, modifiers & a Spotify-style recommender
 
 - **↩️ Replay restarts the current song in place** (seek to 0) when you press it

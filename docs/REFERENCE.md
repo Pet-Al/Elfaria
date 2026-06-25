@@ -50,7 +50,7 @@ bot's voice channel.
 | `/shuffle` | — | voice+DJ | Shuffle the queue. |
 | `/loop` | (dropdown on the card) | voice+DJ | Off / track / queue (× once / infinite). |
 | `/autoplay` | `[when-off: dequeue\|keep]` | voice+DJ | Toggle related-track autoplay; buffers ahead. |
-| `/recommend` | `[count]` | voice+DJ | Queue picks for you (trained model + co-play + your taste). |
+| `/recommend` | `[count] [clear]` | voice+DJ | Queue fresh, genre-matched picks (seed radio + recsys); `clear:true` removes them. |
 | `/reroll` | — | voice+DJ | Replace autoplay picks with a fresh shuffle. |
 | `/autoplay-dequeue` | — | voice+DJ | Remove autoplay picks (keeps your own). |
 
@@ -181,6 +181,7 @@ See **[.env.example](../.env.example)** for the annotated source of truth.
 | Commands | `AUTO_DEPLOY_COMMANDS`, `CLEAR_ALL_GUILD_COMMANDS`, `DEFAULT_COOLDOWN_MS` |
 | Database | `DATABASE_URL`, `DATABASE_PATH`, `DATABASE_REPLICA_URL` |
 | Lavalink | `LAVALINK_PASSWORD`, `LAVALINK_HOST/PORT/SECURE`, `LAVALINK_NODES` |
+| Plugins | `LYRICS_SOURCE` (lrclib/lavalink), `LAVA_DSPX`, `LAVASEARCH` — see [PLUGINS.md](./PLUGINS.md) |
 | Music | `DEFAULT_VOLUME`, `DEFAULT_SEARCH_PLATFORM`, `LEAVE_ON_EMPTY/END_COOLDOWN_MS`, `PAUSE_LEAVE_COOLDOWN_MS`, `NOWPLAYING_REFRESH_MS`, `AUTOPLAY_QUEUE_SIZE`, `MAX_TRACK_ERRORS`, `MAX_TRACK_ERRORS_WINDOW_MS` |
 | Scaling | `REDIS_URL`, `SHARDING`, `SHARD_COUNT`, `TOTAL_SHARDS`, `SHARDS_PER_POD`, `SHARD_IDS`, `POD_NAME` |
 | Observability | `METRICS_ENABLED/PORT`, `OTEL_EXPORTER_OTLP_ENDPOINT` |

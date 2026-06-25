@@ -83,6 +83,31 @@ function stopTicking(player: Player): void {
 }
 
 /**
+ * Synced lyrics for the card. With LYRICS_SOURCE=lavalink we ask the LavaLyrics
+ * plugin through the node first (player.getCurrentLyrics) and map its timed
+ * lines; on empty/error we fall back to the proven LRCLIB client. Default
+ * ('lrclib') skips straight to LRCLIB — the original path, untouched.
+ */
+async function fetchCardLyrics(
+  player: Player,
+  author: string,
+  title: string,
+): Promise<SyncedLine[] | null> {
+  if (config.plugins.lyricsSource === 'lavalink') {
+    try {
+      const res = await player.getCurrentLyrics();
+      const lines = (res?.lines ?? [])
+        .filter((l) => l.line)
+        .map((l) => ({ t: l.timestamp, text: l.line }));
+      if (lines.length) return lines;
+    } catch {
+      // plugin missing / no match → fall back to LRCLIB below
+    }
+  }
+  return fetchSyncedLyrics(author, title);
+}
+
+/**
  * Grey out a panel. `withReplay` adds the active Replay button — used for the
  * FINAL panel (queue finished, or the bot leaving on idle/pause), so the card is
  * greyed but the track can still be brought back. A buried mid-playback panel
@@ -225,7 +250,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       // Fetch timed (synced) lyrics for the card — best-effort, off the hot path.
       player.set('syncedLyrics', undefined);
       if (track.info.title && !track.info.isStream) {
-        void fetchSyncedLyrics(track.info.author ?? '', track.info.title).then((lines) => {
+        void fetchCardLyrics(player, track.info.author ?? '', track.info.title).then((lines) => {
           // Only apply if this is still the track playing (the fetch is async).
           if (lines && player.queue.current?.info.identifier === track.info.identifier) {
             player.set('syncedLyrics', lines);

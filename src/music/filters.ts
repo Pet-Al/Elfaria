@@ -1,16 +1,23 @@
 import type { EQBand, Player } from 'lavalink-client';
+import { config } from '../config.js';
+import { logger } from '../lib/logger.js';
 
 /**
- * Audio filter presets + apply logic (shared by /filter, /filter-save, and the
- * per-guild filter persistence applied on player creation).
+ * Audio filter presets + apply logic (shared by /filter and the per-guild filter
+ * persistence applied on player creation).
  *
  * Anti-clipping: stock EQ presets boost bands up to +0.30/+0.40, which clips
  * into static on loud tracks. These custom curves cap every boost at +0.15 and
  * pair boosts with gentle cuts to keep headroom — same character, no distortion.
+ *
+ * LavaDSPX presets (normalize/echo) are only offered when LAVA_DSPX is on and the
+ * plugin is installed; they apply via Lavalink's pluginFilters. Every apply first
+ * RESETS all filters (standard + plugin) back to a clean slate, so presets never
+ * stack — switching to any preset gives exactly that preset's values.
  */
 
-/** The filter choices offered by /filter and /filter-save. */
-export const FILTER_CHOICES = [
+/** Base filter choices (always available — stock EQ + lavaplayer toggles). */
+const BASE_CHOICES = [
   { name: 'Off (clear)', value: 'off' },
   { name: 'Bass boost', value: 'bassboost' },
   { name: 'Nightcore', value: 'nightcore' },
@@ -23,6 +30,18 @@ export const FILTER_CHOICES = [
   { name: 'Electronic', value: 'electronic' },
   { name: 'Vocal (singing clarity)', value: 'vocal' },
 ] as const;
+
+/** LavaDSPX presets — only shown when LAVA_DSPX is enabled (plugin required). */
+const DSPX_CHOICES = [
+  { name: 'Normalize (even out loudness)', value: 'normalize' },
+  { name: 'Echo', value: 'echo' },
+] as const;
+
+/** The filter choices offered by /filter (DSPX entries appear only when enabled). */
+export const FILTER_CHOICES = [
+  ...BASE_CHOICES,
+  ...(config.plugins.dspx ? DSPX_CHOICES : []),
+];
 
 /** Build a 15-band EQ from an array of gains (band index = position). */
 function bands(gains: number[]): EQBand[] {
@@ -51,16 +70,29 @@ export const EQ_PRESETS: Record<string, EQBand[]> = {
   ]),
 };
 
-/** Apply a filter preset to a player, clearing any previous one first. Records
- * the active preset name on the player ('filter') so the now-playing card can
- * show a 🎛️ modifier badge; 'off' clears it. */
+/** LavaDSPX pluginFilter payloads (applied via Lavalink's pluginFilters). */
+const DSPX_FILTERS: Record<string, Record<string, unknown>> = {
+  normalize: { normalization: { maxAmplitude: 0.75, adaptive: true } },
+  echo: { echo: { echoLength: 0.3, decay: 0.4 } },
+};
+
+/**
+ * Apply a filter preset to a player. ALWAYS resets first — standard filters, EQ,
+ * AND any LavaDSPX pluginFilters — so presets never stack: every call sets the
+ * player to exactly that preset's values ('off' just leaves it cleared). Records
+ * the active preset name on the player ('filter') for the card's 🎛️ badge.
+ */
 export async function applyFilter(player: Player, type: string): Promise<void> {
   const fm = player.filterManager;
   await fm.resetFilters();
   await fm.clearEQ();
+  // Reset LavaDSPX plugin filters back to their (empty) preset state too, so a
+  // previous normalize/echo doesn't linger when switching to a stock preset.
+  if (fm.data) fm.data.pluginFilters = {};
   player.set('filter', type === 'off' ? undefined : type);
   switch (type) {
     case 'off':
+      await fm.applyPlayerFilters();
       return;
     case 'bassboost':
     case 'pop':
@@ -83,5 +115,16 @@ export async function applyFilter(player: Player, type: string): Promise<void> {
     case 'lowpass':
       await fm.toggleLowPass();
       return;
+    case 'normalize':
+    case 'echo': {
+      // LavaDSPX presets — fail-soft if the plugin isn't installed.
+      try {
+        if (fm.data) fm.data.pluginFilters = DSPX_FILTERS[type];
+        await fm.applyPlayerFilters();
+      } catch (err) {
+        logger.warn({ err, type }, 'LavaDSPX filter failed (is the plugin installed?)');
+      }
+      return;
+    }
   }
 }

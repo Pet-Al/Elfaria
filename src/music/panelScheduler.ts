@@ -26,6 +26,7 @@ const MIN_EDIT_INTERVAL_MS = REFRESH_MS > 0 ? Math.max(500, Math.floor(REFRESH_M
 
 const dirty = new Map<string, Player>(); // guildId -> latest player ref to render
 const lastEdit = new Map<string, number>(); // guildId -> last edit dispatch time
+const inFlight = new Set<string>(); // guildIds whose edit hasn't resolved yet
 let renderer: Renderer | null = null;
 let provider: PlayersProvider | null = null;
 let loop: NodeJS.Timeout | null = null;
@@ -39,6 +40,7 @@ export function markPanelDirty(player: Player): void {
 export function clearPanelDirty(guildId: string): void {
   dirty.delete(guildId);
   lastEdit.delete(guildId);
+  inFlight.delete(guildId);
 }
 
 /**
@@ -65,20 +67,30 @@ function tick(): void {
     }
   }
 
-  // 2) Drain — one edit per dirty player, throttled. Edits are fire-and-forget
-  //    (discord.js owns the REST rate-limit queue), so a slow edit never blocks
-  //    the loop or other guilds. A player throttled this tick is re-deferred.
+  // 2) Drain — one edit per dirty player, throttled AND serialized per player.
+  //    Edits are fire-and-forget across DIFFERENT guilds (discord.js owns the
+  //    REST rate-limit queue), but for a SINGLE player we never start a new edit
+  //    while its previous one is still in flight — two concurrent message.edits
+  //    can land out of order and make the progress bar jump backwards (the
+  //    "multi-skip glitches the timer" bug). A player skipped this tick is
+  //    re-deferred to the next.
   if (dirty.size === 0) return;
   const now = Date.now();
   const batch = [...dirty.values()];
   dirty.clear();
   for (const player of batch) {
-    const last = lastEdit.get(player.guildId) ?? 0;
-    if (now - last < MIN_EDIT_INTERVAL_MS) {
-      dirty.set(player.guildId, player); // try again next tick
+    const gid = player.guildId;
+    if (inFlight.has(gid)) {
+      dirty.set(gid, player); // previous edit still running — try next tick
       continue;
     }
-    lastEdit.set(player.guildId, now);
-    void renderer(player);
+    const last = lastEdit.get(gid) ?? 0;
+    if (now - last < MIN_EDIT_INTERVAL_MS) {
+      dirty.set(gid, player); // throttled — try next tick
+      continue;
+    }
+    lastEdit.set(gid, now);
+    inFlight.add(gid);
+    void renderer(player).finally(() => inFlight.delete(gid));
   }
 }

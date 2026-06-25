@@ -3,7 +3,7 @@ import { collaborativeSignal } from './signals/collaborative.js';
 import { nlpSignal } from './signals/nlp.js';
 import { popularitySignal } from './signals/popularity.js';
 import { sessionSignal } from './signals/session.js';
-import type { RankedRecommendation, RecoContext, Signal } from './types.js';
+import type { RankedRecommendation, RecoContext, Signal, SignalName } from './types.js';
 
 /**
  * Recommendation orchestrator (doc: docs/RECOMMENDER.md).
@@ -23,12 +23,23 @@ export const SIGNALS: Signal[] = [
   popularitySignal,
 ];
 
+export interface RecommendOptions extends BlendOptions {
+  /**
+   * Restrict to these signals only. Used to keep results genre-consistent: with
+   * a real seed we run the seed-aware signals (collaborative/session/nlp) and
+   * leave OUT popularity, which otherwise injects the guild's overall favourites
+   * regardless of the seed's genre (the "EDM seed → lofi results" problem).
+   */
+  only?: SignalName[];
+}
+
 /** Build a ranked, de-duplicated recommendation list for the given context. */
 export async function recommend(
   ctx: RecoContext,
-  opts: BlendOptions = { epsilon: 0.2 },
+  opts: RecommendOptions = { epsilon: 0.2 },
 ): Promise<RankedRecommendation[]> {
-  return blend(ctx, SIGNALS, opts);
+  const active = opts.only ? SIGNALS.filter((s) => opts.only!.includes(s.name)) : SIGNALS;
+  return blend(ctx, active, opts);
 }
 
 export { setAudioFeatureProvider, getAudioFeatureProvider } from './audioFeatures.js';

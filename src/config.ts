@@ -244,6 +244,24 @@ export const config = {
   // GDPR data retention: play_history + events older than this are pruned daily.
   retentionDays: intOption('DATA_RETENTION_DAYS', 90),
 
+  // Optional Lavalink PLUGIN integrations (doc: docs/PLUGINS.md). Each defaults
+  // to Elfaria's ORIGINAL implementation, so nothing changes until you (1) add
+  // the plugin in lavalink/application.yml, (2) flip the flag here, and (3)
+  // confirm it works. This is the "migrate but keep the old path until proven"
+  // switch — flip back instantly if a plugin misbehaves.
+  plugins: {
+    // Synced-lyrics source for the now-playing card:
+    //   'lrclib'   — the built-in LRCLIB HTTP client (default, proven), or
+    //   'lavalink' — the LavaLyrics plugin via the node (player.getCurrentLyrics()),
+    //                with an automatic LRCLIB fallback when it returns nothing.
+    lyricsSource: optional('LYRICS_SOURCE', 'lrclib'),
+    // LavaDSPX filter presets (normalize / echo). Requires the LavaDSPX plugin;
+    // when off those presets are hidden from /filter entirely.
+    dspx: optional('LAVA_DSPX', 'false') === 'true',
+    // Use the LavaSearch plugin (richer multi-type results) where supported.
+    lavaSearch: optional('LAVASEARCH', 'false') === 'true',
+  },
+
   // Trained recommender (doc roadmap #6). The offline trainer (`npm run train`)
   // writes an item2vec embeddings artifact here; the bot loads it on boot and
   // autoplay uses it ahead of the heuristics. Optional — absent = heuristics only.

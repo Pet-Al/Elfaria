@@ -300,8 +300,10 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   ];
 
   // State line: volume + loop, only what's known.
+  // State line: just the loop badge. Volume is intentionally NOT shown here —
+  // the volume dropdown's placeholder already displays the current level, so
+  // repeating it under the title was redundant.
   const state: string[] = [];
-  if (volume !== undefined) state.push(`🔊 ${volume}%`);
   const loop = loopBadge(loopState);
   if (loop) state.push(loop);
   if (state.length) header.push(state.join('    '));
