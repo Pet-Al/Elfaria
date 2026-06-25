@@ -18,8 +18,19 @@ so the proven code path stays the default until you confirm the new one works.
 | Plugin | Flag (`.env`) | Default | When on |
 |---|---|---|---|
 | **LavaLyrics** | `LYRICS_SOURCE` | `lrclib` | `lavalink` → the card's synced lyrics come from the node (`player.getCurrentLyrics()`), with an automatic **LRCLIB fallback** if it returns nothing. |
-| **LavaDSPX** | `LAVA_DSPX` | `false` | `true` → adds **Normalize** and **Echo** presets to `/filter` (applied via Lavalink `pluginFilters`). |
 | **LavaSearch** | `LAVASEARCH` | `false` | `true` → plain-text searches try LavaSearch first (richer, multi-type results) and **fall back to the normal search** on any miss/error. |
+| **LavaDSPX** ⚠️ | `LAVA_DSPX` | `false` | `true` → adds **Normalize** and **Echo** presets to `/filter` (applied via Lavalink `pluginFilters`). **Currently disabled in `application.yml`** — see below. |
+
+> **⚠️ LavaDSPX is commented out in `application.yml` right now.** The published
+> JitPack coordinate I had (`com.github.devoxin:LavaDSPX-Plugin:2.0.0`) **404s**,
+> and a missing plugin jar makes Lavalink's `PluginManager` abort on boot — which
+> takes the **whole node** down (crash-loop). Because the bot's DSPX path is
+> flag-gated (`LAVA_DSPX=false`) and fail-soft, leaving the plugin out changes
+> nothing user-facing: `/filter` simply won't list Normalize/Echo. To enable it,
+> confirm a working tag exists at
+> <https://github.com/devoxin/LavaDSPX-Plugin/releases> (JitPack builds on demand,
+> so the git tag must exist), uncomment the dependency in `application.yml`, then
+> set `LAVA_DSPX=true`.
 
 ### Why flags?
 
@@ -41,11 +52,13 @@ confirm the new one works." So:
 2. **Confirm**, then flip one flag at a time in `.env` and **restart the bot**:
    - `LYRICS_SOURCE=lavalink` — play a track with lyrics; the card line should
      populate. If a track has none, it silently falls back to LRCLIB.
-   - `LAVA_DSPX=true` — `/filter` now lists **Normalize** / **Echo**. Applying
-     any filter first **resets all filters (stock + plugin) to a clean slate**,
-     so presets never stack — switching gives exactly that preset's values.
    - `LAVASEARCH=true` — `/play <text>` uses LavaSearch (best with LavaSrc
      sources); on any error it transparently uses the old search.
+   - `LAVA_DSPX=true` — **only after** uncommenting the LavaDSPX dependency in
+     `application.yml` with a confirmed-working version (see the ⚠️ note above);
+     `/filter` then lists **Normalize** / **Echo**. Applying any filter first
+     **resets all filters (stock + plugin) to a clean slate**, so presets never
+     stack — switching gives exactly that preset's values.
 3. If anything misbehaves, set the flag back and restart — no code change needed.
 
 ## Versions

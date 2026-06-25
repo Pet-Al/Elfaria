@@ -41,12 +41,18 @@ lavalink:
       repository: 'https://maven.lavalink.dev/releases'
     # LavaLyrics — a lyrics API other plugins/clients consume; LavaSrc feeds it
     # (lavalink-client: player.getCurrentLyrics()). Enables native synced lyrics.
-    - dependency: 'com.github.topi314.lavalyrics:lavalyrics-plugin:1.0.0'
+    - dependency: 'com.github.topi314.lavalyrics:lavalyrics-plugin:1.1.0'
       repository: 'https://maven.lavalink.dev/releases'
-    # LavaDSPX — extra DSP filters (normalization, high/low-pass, echo) beyond the
-    # stock EQ, applied via pluginFilters. Powers the /filter normalize & echo presets.
-    - dependency: 'com.github.devoxin:LavaDSPX-Plugin:2.0.0'
-      repository: 'https://jitpack.io'
+    # LavaDSPX — extra DSP filters (normalization, high/low-pass, echo) for the
+    # /filter normalize & echo presets. DISABLED: the JitPack coordinate below
+    # 404s right now (no published 2.0.0 build), and a missing plugin jar makes
+    # Lavalink's PluginManager abort on boot — taking the WHOLE node down. The
+    # bot's DSPX path is flag-gated (LAVA_DSPX, default off) and fail-soft, so
+    # leaving this off changes nothing. To enable: confirm a working version/
+    # coordinate at https://github.com/devoxin/LavaDSPX-Plugin/releases (JitPack
+    # builds on demand — the tag must exist), uncomment, then set LAVA_DSPX=true.
+    # - dependency: 'com.github.devoxin:LavaDSPX-Plugin:<verify-version>'
+    #   repository: 'https://jitpack.io'
   server:
     password: '${LAVALINK_SERVER_PASSWORD:youshallnotpass}'
     sources:

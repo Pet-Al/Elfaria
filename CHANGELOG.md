@@ -22,12 +22,21 @@ and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 - **Lavalink plugin migration (flagged, old path stays default)** — see
   [docs/PLUGINS.md](./docs/PLUGINS.md):
   - **LavaLyrics** (`LYRICS_SOURCE=lavalink`) — native synced lyrics via the
-    node, with automatic LRCLIB fallback.
-  - **LavaDSPX** (`LAVA_DSPX=true`) — adds **Normalize** / **Echo** presets to
-    `/filter`; every filter apply resets all filters (stock + plugin) to a clean
-    slate so presets never stack.
+    node, with automatic LRCLIB fallback. (lavalyrics-plugin bumped 1.0.0 → 1.1.0.)
   - **LavaSearch** (`LAVASEARCH=true`) — richer search, falling back to the
     normal search on any miss.
+  - **LavaDSPX** (`LAVA_DSPX=true`) — would add **Normalize** / **Echo** presets
+    to `/filter`. **Disabled for now**: the JitPack coordinate 404s (no published
+    build at that tag), and a missing plugin jar crash-loops the whole node, so
+    it's commented out in `application.yml`. The bot code is already there and
+    flag-gated — flip the flag once a working version is uncommented.
+- **Lavalink boot-crash fix** — Lavalink (and `lavalink2`) were **crash-looping**
+  with `FileNotFoundException … LavaDSPX-Plugin-2.0.0.jar`: one unresolvable
+  plugin coordinate makes `PluginManager` abort the entire node on boot, so the
+  bot's nodes never connected (all the `ECONNREFUSED`/`ENOTFOUND` noise was
+  downstream of that). Commenting out the bad LavaDSPX dependency restores boot;
+  every other plugin (youtube-source, LavaSrc, SponsorBlock, LavaSearch,
+  LavaLyrics) loads fine.
 
 ## Update pipeline, restart-replay, modifiers & a Spotify-style recommender
 
