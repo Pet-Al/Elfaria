@@ -45,6 +45,6 @@ export const move: Command = {
     await player.queue.splice(from - 1, 1); // remove it
     await player.queue.splice(to - 1, 0, track); // re-insert at the new spot
     await replyOk(interaction, `↕️ Moved **${track.info?.title ?? 'track'}** to position **${to}**.`);
-    void refreshPanel(player, true);
+    void refreshPanel(player);
   },
 };

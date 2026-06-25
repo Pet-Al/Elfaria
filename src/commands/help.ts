@@ -33,6 +33,7 @@ const GROUPS: { name: string; lines: string[] }[] = [
       '`/lofi` — pick a lofi **theme** (chill/study/sleep/jazz/…) · `/24-7` — stay in voice (until-empty/forever)',
       '`/filter` — EQ / effects incl. **vocal** clarity (add `save:true` for a server default)',
       '`/sponsorblock` — skip sponsor/intro/off-topic segments · `/volume` — set the volume',
+      '`/modifiers` — see what’s active (autoplay/filter/…) + toggle persistence',
     ],
   },
   {
@@ -53,8 +54,9 @@ const GROUPS: { name: string; lines: string[] }[] = [
 const BUTTONS =
   '**Now-playing buttons:** ⏮️ back · ⏯️ play/pause · ⏭️ skip · ⏹️ stop · 📜 queue · ' +
   '⭐ favorite · 🔀 shuffle · ↩️ replay · plus loop / volume / seek dropdowns. ' +
-  'Favorite/Replay always target the song on the card you click (even an old one), ' +
-  'and finished cards keep ↩️ Replay + ⭐ Favorite for ~30 min.';
+  '↩️ Replay restarts the current song from the top; on an older/finished card it ' +
+  're-queues that track. Favorite/Replay always target the song on the card you ' +
+  'click (even an old one), and finished cards keep their buttons for ~30 min.';
 
 export const help: Command = {
   data: new SlashCommandBuilder().setName('help').setDescription('List Elfaria’s commands.'),

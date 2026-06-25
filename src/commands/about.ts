@@ -31,9 +31,10 @@ const FIELDS: { name: string; value: string }[] = [
   {
     name: '🧠 ML & data science',
     value:
-      'A trained **item2vec** (skip-gram + negative sampling) recommender — offline train, ' +
-      'inference-serve, hot-reloaded nightly — ahead of a co-play **collaborative filter**. ' +
-      'Plus an **A/B framework** (hash-bucketed variants + exposure events).',
+      'A **Spotify-style multi-model recommender**: collaborative filtering ' +
+      '(**item2vec** + co-play), a **session** model, **NLP/semantic** and **audio-analysis** ' +
+      'pillars, fused by a **BaRT-style** blender with an exploration arm — plus per-user ' +
+      'taste profiles and an **A/B framework**. Trained offline, hot-reloaded nightly.',
   },
   {
     name: '📈 Observability & SRE',

@@ -13,6 +13,7 @@ import { history } from './history.js';
 import { lofi } from './lofi.js';
 import { loop } from './loop.js';
 import { lyrics } from './lyrics.js';
+import { modifiers } from './modifiers.js';
 import { move } from './move.js';
 import { nowplaying } from './nowplaying.js';
 import { pause } from './pause.js';
@@ -69,6 +70,7 @@ export const commands: Command[] = [
   twentyfourseven,
   filter,
   sponsorblock,
+  modifiers,
   status,
   history,
   replay,

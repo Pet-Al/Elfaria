@@ -32,6 +32,8 @@ export const DEFAULT_SEGMENTS = [
  * REST call 404s — we log once and carry on, never breaking playback.
  */
 export async function applySponsorBlock(player: Player, enabled: boolean): Promise<void> {
+  // Record the state on the player so the now-playing card can show a ⏭️ badge.
+  player.set('sponsorblock', enabled);
   try {
     if (enabled) await player.setSponsorBlock([...DEFAULT_SEGMENTS]);
     else await player.deleteSponsorBlock();

@@ -29,7 +29,7 @@ export const dequeue: Command = {
     }
 
     const removed = await clearAutoplayQueued(player);
-    void refreshPanel(player, true);
+    void refreshPanel(player);
     await replyOk(
       interaction,
       removed > 0

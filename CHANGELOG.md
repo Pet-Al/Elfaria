@@ -5,6 +5,32 @@ Notable changes, newest first. Elfaria is pre-1.0 and on a single rolling branch
 semver tags. See [docs/REFERENCE.md](./docs/REFERENCE.md) for the full reference
 and [docs/GUIDE.md](./docs/GUIDE.md) to get started.
 
+## Update pipeline, restart-replay, modifiers & a Spotify-style recommender
+
+- **↩️ Replay restarts the current song in place** (seek to 0) when you press it
+  on the live card; on a finished/older card it still re-queues that track.
+- **Dedicated card-update pipeline** (`music/panelScheduler.ts`) — one process-
+  wide loop owns every now-playing edit, coalescing command bursts to one edit
+  per player per tick. Commands just mark a card dirty and return, so heavy
+  traffic can't stall or spam the live timer/lyrics. The old per-player interval
+  and the hardcoded 3s edit floor are gone; cadence + throttle derive from
+  `NOWPLAYING_REFRESH_MS` (so 1s genuinely means 1s).
+- **Modifier badges on the card** — autoplay ♾️, filter 🎛️, SponsorBlock ⏭️ and
+  24/7 📌 now show in the card's tags area.
+- **`/modifiers`** — view every active modifier (autoplay/loop/filter/
+  SponsorBlock/24-7/volume) and toggle **persistence**.
+- **Modifiers reset to defaults on restart/leave by default.** Filters &
+  SponsorBlock only survive when a guild opts in via `/modifiers persist:on`;
+  **autoplay always resets off when the bot leaves** so it never silently resumes.
+- **Longer pause timeout** — a paused player now waits `PAUSE_LEAVE_COOLDOWN_MS`
+  (default **10 min**) before leaving, separate from the quick empty/queue-end
+  cooldowns.
+- **Multi-model recommender** (`src/ml/recsys/`, see
+  [docs/RECOMMENDER.md](./docs/RECOMMENDER.md)) — a Spotify-style stack of
+  independent signals (collaborative filtering, session, NLP/semantic,
+  popularity, + an audio-analysis seam) fused by a BaRT-style blender with an
+  exploration arm. `/recommend` runs it end to end.
+
 ## Per-second cards, per-track favorites, lofi themes & the next 5
 
 - **Now-playing updates every second** — `NOWPLAYING_REFRESH_MS` defaults to

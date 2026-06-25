@@ -49,6 +49,6 @@ export const seek: Command = {
 
     await player.seek(ms);
     await replyOk(interaction, `⏩ Seeked to **${formatDuration(ms)}**.`);
-    void refreshPanel(player, true);
+    void refreshPanel(player);
   },
 };

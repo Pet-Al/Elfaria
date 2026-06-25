@@ -109,7 +109,7 @@ export const lofi: Command = {
       void setAppSetting(autoplayKey(interaction.guildId!), 'true');
 
       if (!player.playing && !player.paused) await player.play();
-      void refreshPanel(player, true);
+      void refreshPanel(player);
 
       await replyOk(
         interaction,

@@ -51,11 +51,14 @@ export const EQ_PRESETS: Record<string, EQBand[]> = {
   ]),
 };
 
-/** Apply a filter preset to a player, clearing any previous one first. */
+/** Apply a filter preset to a player, clearing any previous one first. Records
+ * the active preset name on the player ('filter') so the now-playing card can
+ * show a 🎛️ modifier badge; 'off' clears it. */
 export async function applyFilter(player: Player, type: string): Promise<void> {
   const fm = player.filterManager;
   await fm.resetFilters();
   await fm.clearEQ();
+  player.set('filter', type === 'off' ? undefined : type);
   switch (type) {
     case 'off':
       return;

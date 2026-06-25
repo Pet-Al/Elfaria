@@ -30,6 +30,6 @@ export const clear: Command = {
 
     await player.queue.splice(0, count);
     await replyOk(interaction, `🗑️ Cleared **${count}** track${count === 1 ? '' : 's'} from the queue.`);
-    void refreshPanel(player, true);
+    void refreshPanel(player);
   },
 };

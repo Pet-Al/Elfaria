@@ -132,6 +132,10 @@ export const config = {
     leaveOnEmptyMs: intOption('LEAVE_ON_EMPTY_COOLDOWN_MS', 120_000),
     // How long after the queue ends before the bot leaves (ms).
     leaveOnEndMs: intOption('LEAVE_ON_END_COOLDOWN_MS', 120_000),
+    // How long a PAUSED player waits before the bot leaves (ms). Deliberately
+    // longer than the empty/end cooldowns — a pause is an intentional "hold on",
+    // so we don't kick the bot for a quick break. Default 10 minutes.
+    pauseTimeoutMs: intOption('PAUSE_LEAVE_COOLDOWN_MS', 600_000),
     // Default search source when a query isn't a link. Lavalink search prefixes:
     // ytsearch | ytmsearch (YouTube Music) | scsearch (SoundCloud) | spsearch …
     searchPlatform: optional('DEFAULT_SEARCH_PLATFORM', 'ytsearch'),

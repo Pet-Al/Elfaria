@@ -50,7 +50,7 @@ export const autoplay: Command = {
     if (enabled) {
       const seed = player.queue.current;
       const added = seed ? await fillAutoplayBuffer(player, seed) : 0;
-      void refreshPanel(player, true);
+      void refreshPanel(player);
       await replyOk(
         interaction,
         added > 0
@@ -61,7 +61,7 @@ export const autoplay: Command = {
       // The when-off param only takes effect on this on→off transition.
       const keep = interaction.options.getString('when-off') === 'keep';
       const removed = keep ? 0 : await clearAutoplayQueued(player);
-      void refreshPanel(player, true);
+      void refreshPanel(player);
       await replyOk(
         interaction,
         keep

@@ -20,7 +20,10 @@ all work.
 - Dropdowns: **Loop** (track/queue × once/infinite), **Volume**, and **Seek**
   (jump points that scale with the track length).
 - A live progress bar **and** the **current lyric line** that both update every
-  second.
+  second, plus a badge row showing active modifiers (♾️ autoplay, 🎛️ filter,
+  ⏭️ SponsorBlock, 📌 24/7).
+- ↩️ Replay **restarts the current song from the top**; press it on an older or
+  finished card and it re-queues *that* track instead.
 - ⭐ Favorite and ↩️ Replay always act on the song **on the card you clicked** —
   even an older one scrolled up the channel, not whatever is playing now.
 - When a song's card is retired it keeps **Replay** + **Favorite** for ~30 min,
@@ -45,8 +48,11 @@ and resumes after a restart.
 **Sound.** `/filter` for EQ/effects — bass boost, nightcore, vaporwave, 8D,
 karaoke, lowpass, pop/rock/electronic, and **vocal** (clearer singing).
 `/sponsorblock on` skips sponsor reads, intros/outros and off-topic talking inside
-tracks. `/volume` sets the level. `/status` shows live health; `/about` explains
-what powers it.
+tracks. `/volume` sets the level. `/modifiers` shows everything that's currently
+active and lets you make filters/SponsorBlock **persist** across restarts
+(`/modifiers persist:on`) — by default each session starts clean and autoplay
+always switches off when the bot leaves. `/status` shows live health; `/about`
+explains what powers it.
 
 ---
 

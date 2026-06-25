@@ -62,6 +62,7 @@ bot's voice channel.
 | `/24-7` | `[mode: until-empty\|forever\|off]` | voice+DJ | Stay in voice; auto-rejoins on restart. |
 | `/filter` | `type`, `[save]` | voice+DJ | EQ/effects (incl. `vocal`); `save:true` = server default. |
 | `/sponsorblock` | `[mode: on\|off]` | voice+DJ | Skip sponsor/intro/outro/off-topic segments (persisted per guild). |
+| `/modifiers` | `[persist: on\|off]` | view: all · persist: DJ | View active modifiers; toggle whether filter/SponsorBlock survive leaves/restarts. |
 | `/volume` | `level` | voice+DJ | Set volume (persisted per guild). |
 
 ### Library, server & meta
@@ -99,9 +100,17 @@ Custom-id prefixes routed in `events/interactionCreate.ts` (all instrumented via
 - **`hist:*`** (`events/historyComponents.ts`) — `hist:page:<n>` buttons, `hist:select` jump dropdown.
 - **`q:*`** (`events/queueComponents.ts`) — `q:page:<n>` buttons, `q:select` jump dropdown.
 
-The live card has 5 rows: transport · ⭐/🔀 utility · loop · volume · seek. A
-retired card (finished, buried, or after the bot leaves) shows greyed transport +
-a live **Replay + Favorite** row that expires after ~30 min.
+The live card has 5 rows: transport · ⭐/🔀/↩️ utility · loop · volume · seek, plus
+a **modifier badge** line (♾️ autoplay · 🎛️ filter · ⏭️ SponsorBlock · 📌 24/7) in
+the tags area. ↩️ **Replay restarts the current song in place** (seek to 0); on a
+finished/older card it re-queues that track instead. A retired card (finished,
+buried, or after the bot leaves) shows greyed transport + a live **Replay +
+Favorite** row that expires after ~30 min, each targeting the song on *that* card.
+
+All card edits flow through one **update pipeline** (`music/panelScheduler.ts`):
+commands mark a card dirty and a single loop coalesces edits to one per player
+per tick, so command bursts can't stall or spam the live timer/lyrics. Cadence
+and the burst throttle both derive from `NOWPLAYING_REFRESH_MS`.
 
 ---
 
@@ -116,11 +125,13 @@ src/
   commands/          One file per slash command + index.ts registry
   events/            interactionCreate (router), ready, voiceStateUpdate, buttons,
                      historyComponents, queueComponents, index (self-healing bindEvent)
-  music/             player (Lavalink events + the now-playing panel), QueueManager,
-                     autoplay, filters, loop, nowPlayingCard, sources, queueStore,
-                     panelStore, rejoin
-  analytics/         events (pipeline), kafka, recommend (co-play CF), experiments (A/B)
-  ml/                sgns (item2vec trainer), dataset, recommender (inference serve)
+  music/             player (Lavalink events + now-playing panel), panelScheduler
+                     (card update pipeline), QueueManager, autoplay, filters, loop,
+                     sponsorblock, nowPlayingCard, sources, queueStore, panelStore, rejoin
+  analytics/         events (pipeline), kafka, recommend (co-play CF), taste
+                     (per-user profiles), experiments (A/B)
+  ml/                sgns (item2vec trainer), dataset, recommender (inference serve),
+                     recsys/ (multi-signal recommender + BaRT blender — see RECOMMENDER.md)
   db/                driver (SQLite/Postgres), guilds, history, favorites, playlists,
                      appSettings, index
   lib/               metrics, tracing, logger, api, lyrics, circuitBreaker, artwork,
@@ -170,7 +181,7 @@ See **[.env.example](../.env.example)** for the annotated source of truth.
 | Commands | `AUTO_DEPLOY_COMMANDS`, `CLEAR_ALL_GUILD_COMMANDS`, `DEFAULT_COOLDOWN_MS` |
 | Database | `DATABASE_URL`, `DATABASE_PATH`, `DATABASE_REPLICA_URL` |
 | Lavalink | `LAVALINK_PASSWORD`, `LAVALINK_HOST/PORT/SECURE`, `LAVALINK_NODES` |
-| Music | `DEFAULT_VOLUME`, `DEFAULT_SEARCH_PLATFORM`, `LEAVE_ON_EMPTY/END_COOLDOWN_MS`, `NOWPLAYING_REFRESH_MS`, `AUTOPLAY_QUEUE_SIZE`, `MAX_TRACK_ERRORS`, `MAX_TRACK_ERRORS_WINDOW_MS` |
+| Music | `DEFAULT_VOLUME`, `DEFAULT_SEARCH_PLATFORM`, `LEAVE_ON_EMPTY/END_COOLDOWN_MS`, `PAUSE_LEAVE_COOLDOWN_MS`, `NOWPLAYING_REFRESH_MS`, `AUTOPLAY_QUEUE_SIZE`, `MAX_TRACK_ERRORS`, `MAX_TRACK_ERRORS_WINDOW_MS` |
 | Scaling | `REDIS_URL`, `SHARDING`, `SHARD_COUNT`, `TOTAL_SHARDS`, `SHARDS_PER_POD`, `SHARD_IDS`, `POD_NAME` |
 | Observability | `METRICS_ENABLED/PORT`, `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | Analytics/API | `KAFKA_BROKERS/TOPIC`, `API_ENABLED/PORT`, `DATA_RETENTION_DAYS` |

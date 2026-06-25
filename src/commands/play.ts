@@ -131,7 +131,7 @@ export const play: Command = {
       if (!player.playing && !player.paused) await player.play();
       // Already playing → the new track only changed the queue, so update the
       // existing now-playing card's "up next" in place instead of posting anew.
-      else void refreshPanel(player, true);
+      else void refreshPanel(player);
     } catch (err) {
       logger.error({ err, guildId: interaction.guildId, query }, 'failed to start playback');
       const player = (interaction.client as ElfariaClient).lavalink.getPlayer(interaction.guildId!);

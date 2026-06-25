@@ -247,6 +247,24 @@ export interface CardOptions {
   queueLength?: number;
   /** The current line of synced lyrics (LRCLIB), shown under the progress bar. */
   lyricLine?: string;
+  /** Active modifiers — rendered as a compact badge row (autoplay/filter/etc.). */
+  autoplay?: boolean;
+  /** Active filter/EQ preset name (e.g. "bassboost"), if any. */
+  filterName?: string;
+  /** SponsorBlock segment-skipping enabled. */
+  sponsorBlock?: boolean;
+  /** 24/7 mode (the bot stays in voice). */
+  nonStop?: boolean;
+}
+
+/** Build the modifier badge line (autoplay / filter / sponsorblock / 24-7). */
+function modifierBadges(options: CardOptions): string | null {
+  const badges: string[] = [];
+  if (options.autoplay) badges.push('♾️ Autoplay');
+  if (options.filterName) badges.push(`🎛️ ${options.filterName}`);
+  if (options.sponsorBlock) badges.push('⏭️ SponsorBlock');
+  if (options.nonStop) badges.push('📌 24/7');
+  return badges.length ? `-# ${badges.join('  ·  ')}` : null;
 }
 
 /** The modern Components V2 now-playing card. Send with MessageFlags.IsComponentsV2. */
@@ -287,6 +305,10 @@ export function nowPlayingCard(track: Track, options: CardOptions = {}): Contain
   const loop = loopBadge(loopState);
   if (loop) state.push(loop);
   if (state.length) header.push(state.join('    '));
+
+  // Active modifiers (autoplay / filter / sponsorblock / 24-7) in the tags area.
+  const badges = modifierBadges(options);
+  if (badges) header.push(badges);
 
   if (requester?.username) header.push(`-# Requested by ${requester.username}`);
 

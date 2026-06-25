@@ -33,7 +33,7 @@ export const reroll: Command = {
     if (!player.get<boolean>('autoplay')) player.set('autoplay', true);
 
     const added = await rerollAutoplay(player, current);
-    void refreshPanel(player, true);
+    void refreshPanel(player);
 
     if (added === 0) {
       await replyError(interaction, "Couldn't find fresh tracks to queue right now — try again.");

@@ -11,6 +11,14 @@ import { applySponsorBlock, sponsorBlockKey } from './sponsorblock.js';
 export const autoplayKey = (guildId: string) => `autoplay:${guildId}`;
 /** app_settings key for a guild's persisted default filter. */
 export const filterKey = (guildId: string) => `filter:${guildId}`;
+/**
+ * app_settings key for a guild's MODIFIER-PERSISTENCE switch. OFF by default:
+ * every fresh join/restart starts with default modifiers (no filter, sponsorblock
+ * off, autoplay off). ON ("/modifiers persist on") makes the bot re-apply the
+ * guild's saved filter/sponsorblock when it joins. Autoplay always resets on
+ * leave regardless (see player.ts), so it never silently resumes.
+ */
+export const persistModifiersKey = (guildId: string) => `persistmods:${guildId}`;
 
 /**
  * Queue/player helpers (doc §5).
@@ -53,14 +61,21 @@ export async function ensurePlayer(
       selfDeaf: true,
       volume: settings.defaultVolume,
     });
-    // Apply the guild's persisted autoplay preference (opt-in → defaults off).
-    player.set('autoplay', await getBoolSetting(autoplayKey(guildId), false).catch(() => false));
-    // Re-apply the guild's saved filter (if any), so it survives restarts/re-joins.
-    const savedFilter = await getAppSetting(filterKey(guildId)).catch(() => undefined);
-    if (savedFilter && savedFilter !== 'off') await applyFilter(player, savedFilter).catch(() => undefined);
-    // Re-apply the guild's SponsorBlock preference (off unless explicitly enabled).
-    if ((await getAppSetting(sponsorBlockKey(guildId)).catch(() => undefined)) === 'on') {
-      await applySponsorBlock(player, true);
+    // Modifiers (filter, sponsorblock, autoplay) start at DEFAULTS on a fresh
+    // join/restart — every session starts clean. They're only restored when the
+    // guild opted into modifier persistence (`/modifiers persist on`). Autoplay
+    // additionally always resets on leave (player.ts), so it never auto-resumes.
+    player.set('autoplay', false);
+    const persistMods =
+      (await getAppSetting(persistModifiersKey(guildId)).catch(() => undefined)) === 'on';
+    if (persistMods) {
+      const savedFilter = await getAppSetting(filterKey(guildId)).catch(() => undefined);
+      if (savedFilter && savedFilter !== 'off')
+        await applyFilter(player, savedFilter).catch(() => undefined);
+      if ((await getAppSetting(sponsorBlockKey(guildId)).catch(() => undefined)) === 'on')
+        await applySponsorBlock(player, true).catch(() => undefined);
+      if (await getBoolSetting(autoplayKey(guildId), false).catch(() => false))
+        player.set('autoplay', true);
     }
   }
   if (!player.connected) await player.connect();

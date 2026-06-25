@@ -1,20 +1,20 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import type { Player, SearchResult, Track } from 'lavalink-client';
-import { coPlayedAfter } from '../analytics/recommend.js';
 import { userTopAuthors, userTopTracks } from '../analytics/taste.js';
 import { getLastPlayed } from '../db/history.js';
 import { getVoiceContext, isDj, replyError } from '../lib/interactions.js';
 import { logger } from '../lib/logger.js';
 import type { Command } from '../lib/types.js';
-import { recommendTracks } from '../ml/recommender.js';
+import { recommend as buildRecommendations } from '../ml/recsys/index.js';
 import { getOrCreatePlayer } from '../music/QueueManager.js';
 
 /**
- * /recommend — queue a handful of tracks picked *for you*, blending every signal
- * Elfaria has: the trained item2vec neighbours of a seed, this guild's co-play
- * history, and your personal taste profile — falling back to a search off your
- * favourite artist when the data is thin. The seed is whatever's playing, else
- * your most-played track, else the guild's last-played one.
+ * /recommend — queue a handful of tracks picked *for you*. It runs the multi-
+ * signal recommender (src/ml/recsys): collaborative filtering (co-play +
+ * item2vec), the session model, the NLP/semantic signal, a popularity prior, and
+ * an audio-similarity re-rank — fused by the BaRT-style blender. The seed is
+ * whatever's playing, else your most-played track, else the guild's last-played
+ * one; a search off your favourite artist tops up when the data is thin.
  */
 
 const DEFAULT_COUNT = 5;
@@ -60,9 +60,10 @@ export const recommend: Command = {
       const requester: Requester = { id: userId, username: interaction.user.username };
 
       // Seed: what's playing → your top track → the guild's last-played track.
+      const current = player.queue.current;
       const top = await userTopTracks(userId, 8);
-      const seedUri =
-        player.queue.current?.info.uri ?? top[0]?.uri ?? (await getLastPlayed(guildId))?.uri;
+      const lastPlayed = current ? undefined : await getLastPlayed(guildId);
+      const seedUri = current?.info.uri ?? top[0]?.uri ?? lastPlayed?.uri;
       if (!seedUri) {
         await replyError(
           interaction,
@@ -71,24 +72,36 @@ export const recommend: Command = {
         return;
       }
 
-      // Gather candidate URIs from every signal, de-duped, with the seed removed.
-      const candidateUris = new Set<string>();
-      for (const r of recommendTracks(seedUri, 12)) candidateUris.add(r.uri);
-      for (const c of await coPlayedAfter(guildId, seedUri, 12)) candidateUris.add(c.uri);
-      for (const t of top) candidateUris.add(t.uri);
-      candidateUris.delete(seedUri);
-
-      // Never re-recommend what's already queued.
+      // Never re-recommend what's already queued (or the seed).
       const queued = new Set(
-        [player.queue.current?.info.uri, ...(player.queue.tracks as Track[]).map((t) => t.info.uri)]
-          .filter((u): u is string => Boolean(u)),
+        [current?.info.uri, ...(player.queue.tracks as Track[]).map((t) => t.info.uri)].filter(
+          (u): u is string => Boolean(u),
+        ),
       );
 
+      // The session model's input: recently-played tracks this session, oldest
+      // first (lavalink keeps a "previous" stack), with the current track last.
+      const previous = (player.queue.previous as Track[] | undefined) ?? [];
+      const sessionUris = [...previous].reverse().map((t) => t.info.uri).filter(Boolean);
+      if (current?.info.uri) sessionUris.push(current.info.uri);
+
+      // Run the multi-signal recommender + BaRT blender; over-fetch so we can
+      // drop any URI that fails to re-resolve into a playable track.
+      const ranked = await buildRecommendations({
+        guildId,
+        userId,
+        seedUri,
+        seedTitle: current?.info.title,
+        seedAuthor: current?.info.author ?? top[0]?.author ?? null,
+        sessionUris,
+        exclude: queued,
+        limit: count * 3,
+      });
+
       const picks: Track[] = [];
-      for (const uri of candidateUris) {
+      for (const rec of ranked) {
         if (picks.length >= count) break;
-        if (queued.has(uri)) continue;
-        const track = await searchOne(player, uri, requester);
+        const track = await searchOne(player, rec.uri, requester);
         if (track?.info.uri && !queued.has(track.info.uri)) {
           picks.push(track);
           queued.add(track.info.uri);

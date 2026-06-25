@@ -4,13 +4,16 @@ import type { Player, Track } from 'lavalink-client';
 import type { ElfariaClient } from '../client.js';
 import { config } from '../config.js';
 import { recordEvent } from '../analytics/events.js';
+import { setAppSetting } from '../db/appSettings.js';
 import { recordPlay } from '../db/history.js';
+import { autoplayKey } from './QueueManager.js';
 import { cachedAccentColor, getAccentColor } from '../lib/artwork.js';
 import { type SyncedLine, currentLine, fetchSyncedLyrics } from '../lib/lyrics.js';
 import { logger } from '../lib/logger.js';
 import { fillAutoplayBuffer } from './autoplay.js';
 import { loopStateOf, settleLoopOnce } from './loop.js';
 import { type CardOptions, nowPlayingCard } from './nowPlayingCard.js';
+import { clearPanelDirty, markPanelDirty, startPanelScheduler } from './panelScheduler.js';
 import {
   armPanelExpiry,
   clearPanelExpiry,
@@ -19,6 +22,11 @@ import {
   rememberPanel,
 } from './panelStore.js';
 import { dbQueueStore } from './queueStore.js';
+
+/** Request a now-playing card refresh. Routes through the single update pipeline
+ * (panelScheduler) — callers never edit Discord directly, so command bursts
+ * can't stall or spam the live timer/lyrics. Re-exported for the command layer. */
+export { markPanelDirty as refreshPanel } from './panelScheduler.js';
 
 /**
  * Lavalink wiring (doc §3 Option B).
@@ -34,15 +42,10 @@ import { dbQueueStore } from './queueStore.js';
  *      button. Track starts are also written to play history.
  */
 
-/** Live-progress refresh interval (0 disables live updates — see config). */
-const REFRESH_MS = config.music.nowPlayingRefreshMs;
-/** Minimum spacing between panel edits, so forced-refresh bursts can't flood a
- * channel. Kept just under 1s so a per-second progress/lyrics tick isn't dropped. */
-const MIN_EDIT_INTERVAL_MS = 900;
-
 const V2 = { flags: MessageFlags.IsComponentsV2 } as const;
 
-/** Card options describing the current player state (queue, volume, loop, lyric line). */
+/** Card options describing the current player state (queue, volume, loop, lyric
+ * line, and the active-modifier badges shown in the tags area). */
 function panelOptions(player: Player, positionMs?: number): CardOptions {
   const synced = player.get<SyncedLine[]>('syncedLyrics');
   return {
@@ -53,6 +56,10 @@ function panelOptions(player: Player, positionMs?: number): CardOptions {
     queueLength: player.queue.tracks.length,
     lyricLine:
       synced && positionMs !== undefined ? (currentLine(synced, positionMs) ?? undefined) : undefined,
+    autoplay: player.get<boolean>('autoplay') ?? false,
+    filterName: player.get<string | undefined>('filter'),
+    sponsorBlock: player.get<boolean>('sponsorblock') ?? false,
+    nonStop: player.get<boolean>('247') ?? false,
   };
 }
 
@@ -68,10 +75,11 @@ function rememberCard(message: Message, track: Track): void {
   }
 }
 
-function clearTimer(player: Player): void {
-  const handle = player.get<NodeJS.Timeout | undefined>('npInterval');
-  if (handle) clearInterval(handle);
-  player.set('npInterval', undefined);
+/** Stop ticking a guild's card (it's finished/destroyed) — drops any pending
+ * refresh from the update pipeline. The global scheduler also skips players that
+ * aren't actively playing, so this is just prompt cleanup. */
+function stopTicking(player: Player): void {
+  clearPanelDirty(player.guildId);
 }
 
 /**
@@ -134,31 +142,20 @@ async function placePanel(
 }
 
 /**
- * Re-render the live panel (progress bar ticking, loop/volume state). Exported so
- * the loop/volume controls can refresh immediately. Throttled to one edit per
- * MIN_EDIT_INTERVAL_MS per player — on top of discord.js's own rate-limit queue.
+ * Render one now-playing card edit (progress bar, modifier badges, lyric line).
+ * This is the pipeline's worker — the panelScheduler calls it; it does NOT
+ * throttle (the scheduler coalesces) and never throws. Nothing else should call
+ * it directly: request a refresh with `markPanelDirty(player)` instead.
  */
-export async function refreshPanel(player: Player, force = false): Promise<void> {
+async function renderPanel(player: Player): Promise<void> {
   const message = player.get<Message | undefined>('npMessage');
   const track = player.get<Track | undefined>('npTrack');
   if (!message || !track) return;
-
-  const last = player.get<number | undefined>('npLastEdit') ?? 0;
-  if (!force && Date.now() - last < MIN_EDIT_INTERVAL_MS) return;
-  player.set('npLastEdit', Date.now());
 
   const accentColor = await getAccentColor(track.info.artworkUrl);
   await message
     .edit({ ...V2, components: [nowPlayingCard(track, { ...panelOptions(player, player.position), accentColor })] })
     .catch(() => undefined);
-}
-
-function startProgressUpdates(player: Player): void {
-  if (REFRESH_MS <= 0) return; // live updates disabled (e.g. at very large scale)
-  const handle = setInterval(() => {
-    if (player.playing) void refreshPanel(player);
-  }, REFRESH_MS);
-  player.set('npInterval', handle);
 }
 
 /**
@@ -180,11 +177,16 @@ function armPauseTimer(player: Player): void {
       logger.info({ guildId: player.guildId }, 'paused too long — leaving');
       void player.destroy('Paused inactivity').catch(() => undefined);
     }
-  }, config.music.leaveOnEndMs);
+  }, config.music.pauseTimeoutMs);
   player.set('pauseTimer', handle);
 }
 
 export function registerLavalinkEvents(client: ElfariaClient): void {
+  // The single now-playing update pipeline: one loop edits every live card on
+  // the configured cadence, coalescing command-driven bursts. Decoupled from
+  // command handling so heavy traffic can't stall/spam the timer + lyrics.
+  startPanelScheduler(renderPanel, () => client.lavalink.players.values());
+
   // 1. Bridge: every gateway voice packet must reach Lavalink. discord.js emits
   // "raw" for every payload but doesn't type it, so we go through EventEmitter.
   (client as unknown as EventEmitter).on('raw', (packet: unknown) => {
@@ -212,7 +214,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       if (!track) return;
 
       await settleLoopOnce(player, track.info.identifier); // disarm one-shot loops
-      clearTimer(player);
+      stopTicking(player);
       clearPauseTimer(player);
       // If the panel we're about to reuse had an expiry armed (e.g. after a
       // queue-end card), cancel it — this message is going live again.
@@ -227,7 +229,7 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
           // Only apply if this is still the track playing (the fetch is async).
           if (lines && player.queue.current?.info.identifier === track.info.identifier) {
             player.set('syncedLyrics', lines);
-            void refreshPanel(player, true);
+            markPanelDirty(player);
           }
         });
       }
@@ -257,7 +259,9 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
         player.set('npMessage', message);
         player.set('npTrack', track);
         rememberCard(message, track);
-        startProgressUpdates(player);
+        // The global panelScheduler ticks this card on the configured cadence
+        // (it picks up any playing player with an npMessage) — no per-player timer.
+        markPanelDirty(player);
         // Persist the live panel so it can be retired if this process dies before
         // the panel is cleanly greyed (crash/OOM/kill) — see panelStore.ts.
         void rememberPanel(player.guildId, message.channelId, message.id);
@@ -267,13 +271,13 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       // WHILE the current track plays — not only once the queue swaps to them.
       if (player.get<boolean>('autoplay')) {
         void fillAutoplayBuffer(player, track).then((added) => {
-          if (added > 0) void refreshPanel(player, true);
+          if (added > 0) markPanelDirty(player);
         });
       }
     })
     .on('queueEnd', async (player) => {
       logger.info({ guildId: player.guildId }, 'queue ended');
-      clearTimer(player);
+      stopTicking(player);
 
       // 24/7 mode: cancel lavalink-client's queue-empty disconnect so the bot
       // stays connected (the empty-channel rule in voiceStateUpdate still applies).
@@ -330,11 +334,11 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       // Don't linger paused in voice forever — arm the inactivity leave. In 24/7
       // mode we skip it (the empty-channel rule still covers "nobody's here").
       if (!player.get<boolean>('247')) armPauseTimer(player);
-      void refreshPanel(player, true);
+      markPanelDirty(player);
     })
     .on('playerResumed', (player) => {
       clearPauseTimer(player);
-      void refreshPanel(player, true);
+      markPanelDirty(player);
     })
     .on('playerDisconnect', (player) => {
       logger.info({ guildId: player.guildId }, 'player disconnected from voice');
@@ -347,8 +351,13 @@ export function registerLavalinkEvents(client: ElfariaClient): void {
       );
     })
     .on('playerDestroy', (player) => {
-      clearTimer(player);
+      stopTicking(player);
       clearPauseTimer(player);
+      // Autoplay is a session modifier — always reset it off when the bot leaves
+      // so it never silently resumes auto-queuing on the next join. (The saved
+      // value is cleared too; only modifier-persistence guilds restore others.)
+      player.set('autoplay', false);
+      void setAppSetting(autoplayKey(player.guildId), 'false').catch(() => undefined);
       // However the player goes away, the greyed card below is standalone-
       // functional, so the saved ref is no longer needed.
       void forgetPanel(player.guildId);

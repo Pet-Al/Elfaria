@@ -186,11 +186,18 @@ async function handleFavorite(
 }
 
 /**
- * Replay the track shown on the card you clicked (customId np:replay). Looks the
- * track up by the card's message id so replaying an OLDER card brings back THAT
- * song — falling back to the guild's last-played track when the card map was
- * wiped (a restart). Re-resolves by URL and starts it, recreating the player if
- * the bot already left. Open to anyone in the voice channel.
+ * Replay the track shown on the card you clicked (customId np:replay).
+ *
+ * Two distinct behaviours:
+ *   • LIVE card whose track is the one playing right now → **restart it in
+ *     place** (seek to 0), instead of queuing a second copy. That's what
+ *     "replay" means while a song is playing.
+ *   • A finished/expired/buried card (or a different/older track) → re-resolve
+ *     the track by URL and queue it, recreating the player if the bot left.
+ *
+ * The card's own track is looked up by message id (so an older card replays THAT
+ * song); falls back to the guild's last-played track if the map was wiped (a
+ * restart). Open to anyone in the voice channel.
  */
 async function handleReplay(
   interaction: ButtonInteraction<'cached'>,
@@ -202,8 +209,8 @@ async function handleReplay(
     return;
   }
 
-  const last = getCardTrack(interaction.message.id) ?? (await getLastPlayed(interaction.guildId));
-  if (!last) {
+  const target = getCardTrack(interaction.message.id) ?? (await getLastPlayed(interaction.guildId));
+  if (!target) {
     await interaction.reply({
       content: '❌ Nothing has played recently to replay.',
       flags: MessageFlags.Ephemeral,
@@ -211,6 +218,28 @@ async function handleReplay(
     return;
   }
 
+  // Restart-in-place: the clicked card's track is the one playing now.
+  const livePlayer = client.lavalink.getPlayer(interaction.guildId);
+  const current = livePlayer?.queue.current;
+  if (livePlayer && current && current.info.uri === target.uri && (livePlayer.playing || livePlayer.paused)) {
+    if (current.info.isStream || !current.info.duration) {
+      await interaction.reply({
+        content: '🔴 This is a live stream — there’s nothing to restart.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await livePlayer.seek(0);
+    if (livePlayer.paused) await livePlayer.resume();
+    refreshPanel(livePlayer);
+    await interaction.reply({
+      content: `🔁 Restarted **${current.info.title}** from the top.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Otherwise (finished/expired/buried card, or a different track) → re-queue it.
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const player = await ensurePlayer(
@@ -219,14 +248,14 @@ async function handleReplay(
       voiceChannelId,
       interaction.channelId,
     );
-    const result = await resolve(player, last.uri, interaction.user);
+    const result = await resolve(player, target.uri, interaction.user);
     if (!result.tracks.length) {
-      await interaction.editReply(`❌ Couldn't reload **${last.title}**.`);
+      await interaction.editReply(`❌ Couldn't reload **${target.title}**.`);
       return;
     }
     player.queue.add(result.tracks[0]!);
     if (!player.playing && !player.paused) await player.play();
-    await interaction.editReply(`↩️ Replaying **${last.title}**.`);
+    await interaction.editReply(`↩️ Replaying **${target.title}**.`);
 
     // One-time: grey out the Replay button on the message it was clicked from,
     // reusing the message's existing component tree (works for V1 and V2 alike).
@@ -313,5 +342,5 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     }
     await reply(`⏩ Jumped to **${formatDuration(target)}**.`);
   }
-  void refreshPanel(player, true);
+  refreshPanel(player);
 }
